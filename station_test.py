@@ -6,22 +6,11 @@ Test de stationnarité sur les données
 
 @author: Jérémie Stym-Popper
 """
-import os
 import math
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import statsmodels.tsa.api as smt
 import statsmodels.api as sm
-import itertools
-import sys
-from keras.models import Sequential
-from keras.layers import Dense, LSTM
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
-
-from sklearn.model_selection import train_test_split
-
 
 from cif_OCDE import usa_bon_df
 
