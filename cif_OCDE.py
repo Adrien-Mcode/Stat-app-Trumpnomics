@@ -9,6 +9,9 @@ Module pour importer les données de l'OCDE et visualiser le tableau
 
 from cif import cif
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
 
 database = cif.createOneCountryDataFrameFromOECD('USA', 'MEI', 
                                      frequency='Q', startDate='1990-Q1')
@@ -29,3 +32,23 @@ headers = ['PIB', 'Emplois', 'Actifs', 'Chomage', 'Conso',
 
 d = {col:var_df for col, var_df in zip(headers, [usa_df['{0}'.format(var)]["STSA"] for var in liste_var] )}
 usa_bon_df = pd.DataFrame(d)
+
+
+## ------ Stat Des -------------
+
+## Créons d'abord une colonne time qui donne la date sous le format AAAA-MM-JJ
+
+qs = usa_bon_df.index.str.replace(r'(Q\d) (\d+)', r'\2-\1')
+
+usa_bon_df['date'] = pd.PeriodIndex(qs, freq='Q').to_timestamp()
+
+## Des graphes
+
+sns.set_theme(style="darkgrid")
+
+PIB_graph = sns.lineplot(data=usa_bon_df, x='date', y='PIB')
+PIB_graph.set_title("Évolution du PIB américain depuis 1990")
+
+
+
+
