@@ -66,4 +66,10 @@ plt.title('Prediction ARIMA', fontsize=22, fontweight="bold")
 plt.show()
 
 rmse = math.sqrt(((pred.predicted_mean.values.reshape(-1, 1) - PIB_temp[200:].values) ** 2).mean())
-print('rmse = '+ str(rmse))
+
+#### Pour afficher uniquement les résultats du test :
+    # effectuer la commande suivante 
+
+print(res.summary())
+
+
