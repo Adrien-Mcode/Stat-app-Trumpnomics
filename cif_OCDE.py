@@ -34,7 +34,6 @@ d = {col:var_df for col, var_df in zip(headers, [usa_df['{0}'.format(var)]["STSA
 usa_bon_df = pd.DataFrame(d)
 
 
-## ------ Stat Des -------------
 
 ## Créons d'abord une colonne time qui donne la date sous le format AAAA-MM-JJ
 
@@ -42,7 +41,13 @@ qs = usa_bon_df.index.str.replace(r'(Q\d) (\d+)', r'\2-\1')
 
 usa_bon_df['date'] = pd.PeriodIndex(qs, freq='Q').to_timestamp()
 
-## Des graphes
+
+usa_bon_df = usa_bon_df.reindex(index=usa_bon_df['date'])
+usa_bon_df = usa_bon_df.drop("date", axis=1)
+
+
+## ------ Stat Des -------------
+
 
 sns.set_theme(style="darkgrid")
 
