@@ -45,6 +45,8 @@ usa_bon_df['date'] = pd.PeriodIndex(qs, freq='Q').to_timestamp()
 usa_bon_df = usa_bon_df.reindex(index=usa_bon_df['date'])
 usa_bon_df = usa_bon_df.drop("date", axis=1)
 
+# path_csv = r"C:\Users\Asus\Desktop\Jérémie\Fac_ENSAE\Stat app'\Stat-app-Trumpnomics\usa_df.csv"
+# usa_bon_df.to_csv(path_csv)
 
 ## ------ Stat Des -------------
 
