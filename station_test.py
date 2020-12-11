@@ -54,11 +54,11 @@ plt.legend(loc='upper left', prop={'size': 20})
 plt.title('Prediction ARIMA', fontsize=22, fontweight="bold")
 plt.show()
 
-rmse = math.sqrt(((pred.predicted_mean.values.reshape(-1, 1) - PIB_temp[200:].values) ** 2).mean())
+rmse = math.sqrt(((pred.predicted_mean.values.reshape(-1, 1) - PIB_temp[100:120].values.reshape(-1,1)) ** 2).mean())
 
 #### Pour afficher uniquement les résultats du test :
     # effectuer la commande suivante 
 
 print(res.summary())
-
+print('rmse = '+ str(rmse))
 
