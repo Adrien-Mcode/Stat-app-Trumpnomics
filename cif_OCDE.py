@@ -13,21 +13,22 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
-database = cif.createOneCountryDataFrameFromOECD('USA', 'MEI', 
-                                     frequency='Q', startDate='1990-Q1')
+database = cif.createOneCountryDataFrameFromOECD('USA', 'MEI',
+                                     frequency='Q', startDate='1990-Q1',
+                                     endDate='2019-Q4')
 
 usa_df = database[0]
 labelvar = database[1]
 
 #path_csv = ""
 #database[1].to_csv(path_csv)
-       
+
 ##--- Création d'un dataframe pour USA ----
 
-liste_var = ['NAEXKP01', 'LREMTTTT', 'LRACTTTT', 'LRUNTTTT', 
+liste_var = ['NAEXKP01', 'LREMTTTT', 'LRACTTTT', 'LRUNTTTT',
              'NAEXKP02', 'NAEXKP04', 'NAEXKP06']
 
-headers = ['PIB', 'Emplois', 'Actifs', 'Chomage', 'Conso', 
+headers = ['PIB', 'Emplois', 'Actifs', 'Chomage', 'Conso',
            'Formation', 'Exports']
 
 d = {col:var_df for col, var_df in zip(headers, [usa_df['{0}'.format(var)]["STSA"] for var in liste_var] )}
@@ -55,7 +56,3 @@ sns.set_theme(style="darkgrid")
 
 PIB_graph = sns.lineplot(data=usa_bon_df, x='date', y='PIB')
 PIB_graph.set_title("Évolution du PIB américain depuis 1990")
-
-
-
-
