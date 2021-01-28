@@ -22,4 +22,3 @@ tocde = ocde_df.T.copy()
 tocde.columns=new_index
 tocde.drop(['Variables', 'Pays'],inplace=True)
 
-tocde.to_csv(r"C:\Users\Asus\Desktop\Jérémie\Fac_ENSAE\Stat app'\Stat-app-Trumpnomics\ocde_opti.csv")
