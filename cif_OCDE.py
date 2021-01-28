@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 database = cif.createOneCountryDataFrameFromOECD('USA', 'MEI', 
-                                     frequency='Q', startDate='1990-Q1')
+                                     frequency='Q', startDate='1990-Q1',
+                                     endDate='2019-Q4')
 
 usa_df = database[0]
 labelvar = database[1]
