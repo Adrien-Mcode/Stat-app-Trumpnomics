@@ -11,7 +11,7 @@ Travail sur la base de l'OCDE
 
 import pandas as pd
 
-ocde_df = pd.read_csv(r"https://raw.githubusercontent.com/Adrien-Mcode/Stat-app-Trumpnomics/main/ocde2.csv?token=ARARNIBTC46VS7K7TZW2TM3ACL2X4")
+ocde_df = pd.read_csv(r"https://raw.githubusercontent.com/Adrien-Mcode/Stat-app-Trumpnomics/main/Tableaux_csv/ocde2.csv?token=ARARNIDTKBOZ6UOVAIPROP3ACR4QK")
 
 ocde_df.rename(columns={'Unnamed: 0':'Variables'}, inplace=True)
 
