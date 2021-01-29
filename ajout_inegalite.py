@@ -42,13 +42,7 @@ top_10.columns = ['Variables','Year'] + sorted(pays_ocde.keys(), key = str)
 #on prépare bottom_50 pour la fusion
 bottom_50 = bottom_50.drop('Variables', axis = 1)
 for i in range (1,3) : 
-    #periode = bottom_50.copy()
-    #if i == 1 :
-    #    periode['Year'] = '-Q1'
-    #    bottom_50['Year'] = bottom_50['Year'] + periode['Year']
-    #else : 
-    #periode = bottom_50.copy()
-    #periode['Year'] = periode['Year'] + '-Q'+str(i)
+
     bottom_50 = pd.concat([bottom_50,bottom_50])    
 annee = []
 for j in range (1,5):
@@ -74,3 +68,31 @@ tocde = tocde.merge(right = bottom_50,
                     left_index = True,
                     right_index = True).sort_index(axis = 0).sort_index(axis = 1)
 
+#on prépare top_10 pour la fusion :
+top_10 = top_10.drop('Variables', axis = 1)
+for i in range (1,3) : 
+
+    top_10 = pd.concat([top_10,top_10])    
+annee = []
+for j in range (1,5):
+    for i in range (0,29):
+        annee.append(str(1991+i)+'-Q'+str(j))
+top_10['Year'] = annee
+
+#Mise en place double index pour top_10 :
+top_10 = top_10.set_index('Year')
+
+top_10['Variables'] = 'income p90p100'
+
+ind_tuple = list(zip(top_10.columns, top_10['Variables']))
+
+new_index = pd.MultiIndex.from_tuples(ind_tuple, names=["Pays", "Variables"])
+
+top_10.columns = new_index
+
+top_10 = top_10.drop(('Variables','income p90p100'), axis = 1)
+
+tocde = tocde.merge(right = top_10,
+                    how = 'outer',
+                    left_index = True,
+                    right_index = True).sort_index(axis = 0).sort_index(axis = 1)
