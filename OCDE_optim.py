@@ -19,6 +19,5 @@ ind_tuple = list(zip(ocde_df['Pays'], ocde_df['Variables']))
 new_index = pd.MultiIndex.from_tuples(ind_tuple, names=["Pays", "Variables"])
 
 tocde = ocde_df.T.copy()
-tocde.columns=new_index
-tocde.drop(['Variables', 'Pays'],inplace=True)
-
+tocde.columns = new_index
+tocde.drop(['Variables', 'Pays'], inplace=True)
