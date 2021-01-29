@@ -96,3 +96,6 @@ tocde = tocde.merge(right = top_10,
                     how = 'outer',
                     left_index = True,
                     right_index = True).sort_index(axis = 0).sort_index(axis = 1)
+
+#ajout du coefficient de GINI : 
+GINI = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv', header = 2)
