@@ -105,5 +105,11 @@ tocde = tocde.reindex(index=tocde['date'])
 tocde = tocde.drop("date", axis=1)
 
 
+tocde.to_csv(r'Tableaux_csv\df_ocde_inega.csv')
+
 #ajout du coefficient de GINI : 
-# GINI = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv', header = 2)
+
+gini_base = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv', header = 2).set_index('Country Name')
+
+gini = gini_base.loc[pays_ocde.keys()]
+gini = gini.drop(['Country Code','Indicator Name','Indicator Code'] + list(str(d) for d in range (1960,1991)), axis = 1)
