@@ -32,8 +32,8 @@ kpss_test(serie1)
 
 # "Stationnarisation" de la série, intégration à l'ordre 1
 
-serie2 = serie1 - serie1.shift().fillna(0)
-serie2.drop(pd.Timestamp('1990-01-01 00:00:00'), inplace=True)
+serie2 = serie1 - serie1.shift()
+serie2.dropna(inplace=True)
 kpss_test(serie2)
 
 # Le test révèle maintenant que la série est stationnaire
