@@ -14,17 +14,17 @@ pays_ocde = {"Germany" :'DEU',"Australia" :'AUS',"Austria":'AUT',"Belgium":'BEL'
              "Netherlands":'NLD',"Portugal":'PRT',"United Kingdom":'GBR',
              "Sweden":'SWE',"Switzerland":'CHE',"Turkey":'TUR',"United-States":'USA'}
 
-bottom_50 = pd.read_csv('Donnees inegalite/top_bottom_income/WID_Data_Metadata/bottom_50_income.csv',
+bottom_50 = pd.read_csv('bottom_50_income.csv',
                         header=1,
                         sep=';',
                         engine="python")
 
-top_10 =pd.read_csv('Donnees inegalite/top_bottom_income/WID_Data_Metadata/top_10_income.csv',
+top_10 =pd.read_csv('top_10_income.csv',
                         header=1,
                         sep=';',
                         engine="python")
 
-df_ocde = pd.read_csv('ocde_df')
+df_ocde = pd.read_csv('ocde_df.csv')
 
 df_ocde.rename(columns={'Unnamed: 0':'Variables'}, inplace=True)
 
@@ -34,7 +34,6 @@ new_index = pd.MultiIndex.from_tuples(ind_tuple, names=["Pays", "Variables"])
 tocde = df_ocde.T.copy()
 tocde.columns = new_index
 tocde.drop(['Variables', 'Pays'], inplace=True)
-tocde = tocde.drop(['2020-Q1','2020-Q2','2020-Q3','2020-Q4','2021-Q1'])
 #renommage des colonnes de bottom_50 et top_10
 bottom_50.columns = ['Variables', 'Year'] + sorted(pays_ocde.keys(), key=str)
 top_10.columns = ['Variables', 'Year'] + sorted(pays_ocde.keys(), key=str)
@@ -106,4 +105,9 @@ tocde = tocde.drop("date", axis=1)
 
 
 #ajout du coefficient de GINI : 
-# GINI = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv', header = 2)
+gini = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv',
+                   header = 2).set_index('Country Code').loc[list(str(d) for d in pays_ocde.values())]
+gini = gini.drop(list(str(d) for d in range (1960,1991))+['Indicator Name', 'Indicator Code', 'Unnamed: 65'],
+                 axis = 1)
+
+gini.to_csv('coef_gini.csv')
