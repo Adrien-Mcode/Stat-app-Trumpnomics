@@ -103,6 +103,7 @@ tocde['date'] = pd.PeriodIndex(qs, freq='Q').to_timestamp()
 tocde = tocde.reindex(index=tocde['date'])
 tocde = tocde.drop("date", axis=1)
 
+tocde.to_csv('ocde_df.csv',index = True)
 
 #ajout du coefficient de GINI : 
 gini = pd.read_csv(r'C:\Users\SURFACE\Documents\GitHub\Stat-app-Trumpnomics\Donnees inegalite\coef_gini\coefficient de GINI.csv',
