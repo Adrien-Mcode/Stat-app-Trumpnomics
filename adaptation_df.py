@@ -4,7 +4,6 @@ Created on Thu Feb 25 17:57:04 2021
 
 @author: SURFACE
 """
-import SyntheticControlMethods as scm
 import pandas as pd
 
 df = pd.read_csv('ocde_df.csv',header = [0,1])
@@ -35,10 +34,16 @@ for i in pays_ocde.keys() :
     interm = df[['Pays',i]].drop([(i,'income p0p50'),(i,'income p90p100')],
                                  axis = 1).sort_values(('Pays','Variables'))
     interm.columns = interm.columns.droplevel()
-    interm['ID'] = i
+    interm = interm.drop(0,axis = 0)
+    interm['Variables'] = interm['Variables'].apply(lambda x:float(x[:4]) + float(x[5:7])*0.01)
+    interm['ID'] = str(i)
     df_ct = pd.concat([df_ct,interm],axis = 0)
-print(df_ct)
+    
 df_ct = df_ct[['ID','Variables','PIB','Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports',
        'Formation']]
 df_ct.sort_values('ID',inplace = True,kind = 'mergesort')
+df_ct = df_ct.reset_index().drop('index',axis = 1)
 df_ct.to_csv('df_scm.csv')
+
+
+    
