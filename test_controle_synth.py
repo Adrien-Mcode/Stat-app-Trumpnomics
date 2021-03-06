@@ -58,7 +58,9 @@ df_ct2 = df_ct[df_ct["Variables"].isin(['PIB', 'Actifs', 'Emplois'])].dropna().d
 
 # On mesure le PIB en déviation par rapport à l'année 1995
 
-df_ct2[df_ct2["Variables"]=="PIB"].assign(USA=lambda x: (x.USA - x.USA.iloc[0]) / x.USA.iloc[0])
+for pays in df_ct2.drop('Variables', 1).columns:
+    
+    df_ct2[df_ct2["Variables"]=="PIB"] = df_ct2[df_ct2["Variables"]=="PIB"].assign(**{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
 #On créé les matrices pour la formulation du problème :
 '''  
@@ -81,7 +83,7 @@ X0 = X0.to_numpy()
 
 np.set_printoptions(suppress=True) # Pcq relou les notations avec exponentielles
 
-X1 = df_ct[['USA', 'Variables']]
+X1 = df_ct2[['USA', 'Variables']]
 X1 = X1.drop(list(d for d in range(109,120)))
 X1_mean = X1.groupby('Variables').mean().reset_index()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
@@ -90,7 +92,7 @@ X1 = X1.values
 # Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
 # correspondre à X0 qui, lui, en aura
 
-X0 = df_ct.drop('USA', 1)
+X0 = df_ct2.drop('USA', 1)
 X0 = X0.drop(list(d for d in range(109,120)))
 X0_mean = X0.groupby('Variables').mean().reset_index()
 X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
