@@ -22,21 +22,27 @@ variables = ['Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports', 'Formation', 'P
 #df_cs.xs('PIB', axis=1, level=1, drop_level=False)
 
 #On importe les données
-data = pd.read_csv(r'ocde_df.csv',header = [0,1])
+data = pd.read_csv(r'ocde_df.csv', header=[0,1])
+
+data2 = pd.read_csv(r"df_allcountries.csv", header=[0,1])
 
 #On supprime les inégalités qui ne nous intéressent pas pour l'instant.
-for i in pays_ocde.values() :
-    data= data.drop([(i,'income p0p50'),(i,'income p90p100')], axis=1)
+
+# Partie non nécessaire pour data2
+# for i in pays_ocde.values() :
+#    data= data.drop([(i,'income p0p50'),(i,'income p90p100')], axis=1)
+
 
 #On trie les données pour améliorer les performances et éviter les warnings:
-data = data.sort_index(axis=1)
+data2 = data2.sort_index(axis=1)
   
 #on créé le dataframe qui nous intéresse qui est de la forme : pays en colonnes, 
 #année + variable en ligne (une ligne est donc la valeur d'une variable, pour une 
 #année donnée dans chaque pays)
+
 df_ct = pd.DataFrame()
 for i in variables :
-    interm = data.xs(str(i), axis=1, level=1, drop_level=True)   #On prend uniquement les colonnes qui se rapporte à une variable avec .xs
+    interm = data2.xs(str(i), axis=1, level=1, drop_level=True)   #On prend uniquement les colonnes qui se rapporte à une variable avec .xs
     interm = interm.drop(0, axis=0)                                #On enlève la ligne d'indice 0 qui est vide (seulement des nan)
     interm['Variables'] = str(i)                                    #on rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
     df_ct = pd.concat([df_ct, interm], axis=0)                      #On concatène le df ainsi créé avec les autres
@@ -62,18 +68,23 @@ X0 = X0.to_numpy()
 
 np.set_printoptions(suppress=True) # Pcq relou les notations avec exponentielles
 
-X1 = df_ct.dropna()[['USA','Variables']]
-X1 = X1.drop(list(d for d in range (109,120)))
+X1 = df_ct[['USA', 'Variables']]
+X1 = X1.drop(list(d for d in range(1, 20)))
+X1 = X1.dropna()
+X1 = X1.drop(list(d for d in range(109,120)))
 X1 = X1.groupby('Variables').mean()
 X1 = X1.values
 
-X0 = df_ct.dropna().drop('USA', axis=1)
-X0 = X0.drop(list(d for d in range (109,120)))
+X0 = df_ct.drop('USA', 1)
+X0 = X0.drop(list(d for d in range(1, 20)))
+X0 = X0.dropna()
+X0 = X0.drop(list(d for d in range(109,120)))
 X0 = X0.groupby('Variables').mean()
 X0 = X0.values
 
 # On construit et on "résout" le problème cvxpy
-x = cvx.Variable((22,1),nonneg=True)                #On définit un vecteur de variables cvxpy
+
+x = cvx.Variable((26,1),nonneg=True)                #On définit un vecteur de variables cvxpy
 cost = cvx.norm(X1 - X0@x, p=2)                     #on définit la fonction de cout : norme des résidus
 constraints = [x>=0, cvx.sum(x)==1]                     #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)  #On définit le problème
@@ -82,7 +93,8 @@ prob.solve()                                        #On le résout
 #https://stackoverflow.com/questions/65526377/cvxpy-returns-infeasible-inaccurate-on-quadratic-programming-optimization-proble 
 #explication de pourquoi avec sum_square ça ne fonctionnait pas
 
-#Print result.
+#Print result
+
 print("\nThe optimal value is", prob.value)
 print("The optimal x is")
 print(x.value)
@@ -114,6 +126,10 @@ sc.plot(label="Contrôle Synthétique")
 plt.legend()
 plt.show()
 
-# OK ! On y est presque, il faut juste repérer à quel chiffre d'abscisse 
-# correspond la date 2016, et puis faire en sorte aussi que le garphique
-# affiche des années en abscisse
+"""
+Nous remarquons que le modèle est loin de reproduire la réalité, d'autant plus
+que les coefficients de pondérations donnés par le papier de Born (2020) ne 
+sont pas les mêmes. Nous allons alors passer à la validation croisée pour 
+essayer de régler ces problèmes.
+
+"""
