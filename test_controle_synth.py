@@ -26,6 +26,8 @@ data = pd.read_csv(r'ocde_df.csv', header=[0,1])
 
 data2 = pd.read_csv(r"df_allcountries.csv", header=[0,1])
 
+# Pour répliquer le papier, il faut retirer la Grèce et la Turquie
+
 #On supprime les inégalités qui ne nous intéressent pas pour l'instant.
 
 # Partie non nécessaire pour data2
@@ -46,6 +48,17 @@ for i in variables :
     interm = interm.drop(0, axis=0)                                #On enlève la ligne d'indice 0 qui est vide (seulement des nan)
     interm['Variables'] = str(i)                                    #on rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
     df_ct = pd.concat([df_ct, interm], axis=0)                      #On concatène le df ainsi créé avec les autres
+
+
+df_ct.drop(list(d for d in range(1, 20)), inplace=True) # On commence en 1995
+
+df_ct2 = df_ct[df_ct["Variables"].isin(['PIB', 'Actifs', 'Emplois'])].dropna().drop(['TUR', 'GRC'], 1)
+
+# df_ct2[df_ct2["Variables"]=="PIB"]['USA']
+
+# On mesure le PIB en déviation par rapport à l'année 1995
+
+df_ct2[df_ct2["Variables"]=="PIB"].assign(USA=lambda x: (x.USA - x.USA.iloc[0]) / x.USA.iloc[0])
 
 #On créé les matrices pour la formulation du problème :
 '''  
@@ -69,22 +82,24 @@ X0 = X0.to_numpy()
 np.set_printoptions(suppress=True) # Pcq relou les notations avec exponentielles
 
 X1 = df_ct[['USA', 'Variables']]
-X1 = X1.drop(list(d for d in range(1, 20)))
-X1 = X1.dropna()
 X1 = X1.drop(list(d for d in range(109,120)))
-X1 = X1.groupby('Variables').mean()
+X1_mean = X1.groupby('Variables').mean().reset_index()
+X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
 X1 = X1.values
 
+# Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
+# correspondre à X0 qui, lui, en aura
+
 X0 = df_ct.drop('USA', 1)
-X0 = X0.drop(list(d for d in range(1, 20)))
-X0 = X0.dropna()
 X0 = X0.drop(list(d for d in range(109,120)))
-X0 = X0.groupby('Variables').mean()
+X0_mean = X0.groupby('Variables').mean().reset_index()
+X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
 X0 = X0.values
+
 
 # On construit et on "résout" le problème cvxpy
 
-x = cvx.Variable((26,1),nonneg=True)                #On définit un vecteur de variables cvxpy
+x = cvx.Variable((24,1),nonneg=True)                #On définit un vecteur de variables cvxpy
 cost = cvx.norm(X1 - X0@x, p=2)                     #on définit la fonction de cout : norme des résidus
 constraints = [x>=0, cvx.sum(x)==1]                     #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)  #On définit le problème
@@ -107,7 +122,7 @@ print("The norm of the residual is ", cvx.norm(X0@x - X1, p=2).value)
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 # Parce que là aussi les notations expo rendent les résultats illisibles
 
-country_list = df_ct.dropna().drop(['USA', 'Variables'], axis=1)
+country_list = df_ct.dropna().drop(['USA', 'TUR', 'GRC', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 coeff
 
