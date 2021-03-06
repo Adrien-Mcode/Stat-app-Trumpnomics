@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sat Feb 27 19:24:07 2021
-
 @author: SURFACE
-
 essai d'optimisation avec scipy
 """
 
@@ -13,8 +11,10 @@ import matplotlib.pyplot as plt
 import cvxpy as cvx
 
 
-pays_ocde = {"Germany" :'DEU',"Australia" :'AUS',"Austria":'AUT',"Belgium":'BEL',"Canada":'CAN',"Denmark":'DNK',"Spain":'ESP',"Finland":'FIN',"France":'FRA',"Greece":'GRC',"Ireland":'IRL',"Italy":'ITA',
-             "Japan":'JPN',"Luxembourg":'LUX',"Norway":'NOR',"New-Zealand":'NZL',"Netherlands":'NLD',"Portugal":'PRT',"United Kingdom":'GBR',"Sweden":'SWE',"Switzerland":'CHE',"Turkey":'TUR',"United-States":'USA'}
+pays_ocde = {"Germany" :'DEU',"Australia" :'AUS',"Austria":'AUT',"Belgium":'BEL',"Canada":'CAN',"Denmark":'DNK',"Spain":'ESP',
+             "Finland":'FIN',"France":'FRA',"Hungary":'HUN',"Ireland":'IRL', "Iceland": 'ISL', "Italy":'ITA', 'Korea': 'KOR',
+             "Japan":'JPN',"Luxembourg":'LUX',"Norway":'NOR',"New-Zealand":'NZL',"Netherlands":'NLD',"Portugal":'PRT',
+             "United Kingdom":'GBR',"Sweden":'SWE',"Switzerland":'CHE',"Slovak Republic":'SVK',"United-States":'USA'}
 
 variables = ['Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports', 'Formation', 'PIB']
 
@@ -22,9 +22,8 @@ variables = ['Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports', 'Formation', 'P
 #df_cs.xs('PIB', axis=1, level=1, drop_level=False)
 
 #On importe les données
-data = pd.read_csv(r'ocde_df.csv', header=[0,1])
+data = pd.read_csv(r'df_countries.csv', header=[0,1])
 
-data2 = pd.read_csv(r"df_allcountries.csv", header=[0,1])
 
 # Pour répliquer le papier, il faut retirer la Grèce et la Turquie
 
@@ -36,7 +35,7 @@ data2 = pd.read_csv(r"df_allcountries.csv", header=[0,1])
 
 
 #On trie les données pour améliorer les performances et éviter les warnings:
-data2 = data2.sort_index(axis=1)
+data = data.sort_index(axis=1)
   
 #on créé le dataframe qui nous intéresse qui est de la forme : pays en colonnes, 
 #année + variable en ligne (une ligne est donc la valeur d'une variable, pour une 
@@ -44,7 +43,7 @@ data2 = data2.sort_index(axis=1)
 
 df_ct = pd.DataFrame()
 for i in variables :
-    interm = data2.xs(str(i), axis=1, level=1, drop_level=True)   #On prend uniquement les colonnes qui se rapporte à une variable avec .xs
+    interm = data.xs(str(i), axis=1, level=1, drop_level=True)   #On prend uniquement les colonnes qui se rapporte à une variable avec .xs
     interm = interm.drop(0, axis=0)                                #On enlève la ligne d'indice 0 qui est vide (seulement des nan)
     interm['Variables'] = str(i)                                    #on rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
     df_ct = pd.concat([df_ct, interm], axis=0)                      #On concatène le df ainsi créé avec les autres
@@ -52,7 +51,7 @@ for i in variables :
 
 df_ct.drop(list(d for d in range(1, 20)), inplace=True) # On commence en 1995
 
-df_ct2 = df_ct[df_ct["Variables"].isin(['PIB', 'Actifs', 'Emplois'])].dropna().drop(['TUR', 'GRC'], 1)
+df_ct2 = df_ct[df_ct["Variables"].isin(['PIB', 'Actifs', 'Emplois'])].dropna()
 
 # df_ct2[df_ct2["Variables"]=="PIB"]['USA']
 
@@ -70,9 +69,7 @@ X1 = df_ct.dropna()[['USA','Variables']]          #On créé le vecteur que l'on
 X1 = X1.drop(list(d for d in range (109,120)))              #On supprimme les lignes avec des indices entre 109 et 121 (qui correspondent aux années après 2016)
 X1 = X1[X1.Variables != 'PIB'].drop('Variables', axis=1)   #On ne garde que les variables et pas le PIB
 X1 = X1.to_numpy()                                          #On passe en tableau Numpy
-
 #On réitère le même processus mais cette fois avec le reste des pays
-
 X0 = df_ct.dropna().drop('USA', axis=1)
 X0 = X0.drop(list(d for d in range (109,120)))
 X0 = X0[X0.Variables != 'PIB'].drop('Variables',axis = 1)
@@ -83,7 +80,7 @@ X0 = X0.to_numpy()
 
 np.set_printoptions(suppress=True) # Pcq relou les notations avec exponentielles
 
-X1 = df_ct2[['USA', 'Variables']]
+X1 = df_ct2[['United-States', 'Variables']]
 X1 = X1.drop(list(d for d in range(109,120)))
 X1_mean = X1.groupby('Variables').mean().reset_index()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
@@ -92,7 +89,7 @@ X1 = X1.values
 # Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
 # correspondre à X0 qui, lui, en aura
 
-X0 = df_ct2.drop('USA', 1)
+X0 = df_ct2.drop('United-States', 1)
 X0 = X0.drop(list(d for d in range(109,120)))
 X0_mean = X0.groupby('Variables').mean().reset_index()
 X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
@@ -118,13 +115,13 @@ print(x.value)
 print("The norm of the residual is ", cvx.norm(X0@x - X1, p=2).value)
 
 
-# Visualisation 
+# Visualisation (ATTENTION NON MODIFIEE)
 
 # Voici la table des coefficients attribués à chaque pays
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 # Parce que là aussi les notations expo rendent les résultats illisibles
 
-country_list = df_ct.dropna().drop(['USA', 'TUR', 'GRC', 'Variables'], axis=1)
+country_list = df_ct.dropna().drop(['United-States', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 coeff
 
@@ -132,13 +129,13 @@ coeff
 # Commençons par visualiser l'écart de tendance en PIB
 
 df_pib = df_ct[df_ct["Variables"]=="PIB"]
-df_pib.drop(df_pib.columns.difference(['USA', 'GBR', 'JPN']), 1, inplace=True)
+df_pib.drop(df_pib.columns.difference(['United-States', 'United Kingdom', 'Japan']), 1, inplace=True)
 df_pib.dropna(inplace=True)
 df_pib = df_pib.reset_index().drop('index', 1)
 
-sc = 0.88*df_pib.GBR + 0.12*df_pib.JPN
+sc = 0.88*df_pib['United Kingdom'] + 0.12*df_pib.Japan
 
-df_pib.USA.plot(label='USA')
+df_pib['United-States'].plot(label='USA')
 sc.plot(label="Contrôle Synthétique")
 plt.legend()
 plt.show()
@@ -148,5 +145,4 @@ Nous remarquons que le modèle est loin de reproduire la réalité, d'autant plu
 que les coefficients de pondérations donnés par le papier de Born (2020) ne 
 sont pas les mêmes. Nous allons alors passer à la validation croisée pour 
 essayer de régler ces problèmes.
-
 """
