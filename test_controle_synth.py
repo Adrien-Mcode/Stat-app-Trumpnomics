@@ -80,6 +80,9 @@ for i in ['Chomage', 'Conso_share', 'Prod_growth','Exports', 'Formation']:
 
 df_ct_mean.rename(columns=pays_ocde, inplace=True)
 
+# df_ct_mean.drop(list(d for d in range(1,102)), inplace=True)
+# df_ct_mean.drop(list(d for d in range(106,120)), inplace=True)
+
 # df_ct2[df_ct2["Variables"]=="PIB"]['USA']
 
 # On mesure le PIB en déviation par rapport à l'année 1995
@@ -152,7 +155,7 @@ country_list = df_ct.dropna().drop(['USA', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 coeff
 
-
+"""
 # Commençons par visualiser l'écart de tendance en PIB
 
 df_pib = df_ct[df_ct["Variables"]=="PIB"]
@@ -167,7 +170,7 @@ sc.plot(label="Contrôle Synthétique")
 plt.legend()
 plt.show()
 
-"""
+
 Nous remarquons que le modèle est loin de reproduire la réalité, d'autant plus
 que les coefficients de pondérations donnés par le papier de Born (2020) ne 
 sont pas les mêmes. Nous allons alors passer à la validation croisée pour 
