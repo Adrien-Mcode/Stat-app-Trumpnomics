@@ -155,24 +155,26 @@ country_list = df_ct.dropna().drop(['USA', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 coeff
 
-"""
+
 # Commençons par visualiser l'écart de tendance en PIB
 
-df_pib = df_ct[df_ct["Variables"]=="PIB"]
-df_pib.drop(df_pib.columns.difference(['United-States', 'United Kingdom', 'Japan']), 1, inplace=True)
+df_pib = df_ct2[df_ct2["Variables"]=="PIB"]
+df_pib.drop(df_pib.columns.difference(['USA', 'GBR', 'AUS', 'DNK', 'ISL', 'IRL', 'JPN', 'KOR', 'NLD', 'PRT']), 1, inplace=True)
 df_pib.dropna(inplace=True)
-df_pib = df_pib.reset_index().drop('index', 1)
+#df_pib = df_pib.reset_index().drop('index', 1)
 
-sc = 0.88*df_pib['United Kingdom'] + 0.12*df_pib.Japan
+sc = 0.390*df_pib['GBR'] + 0.077*df_pib.JPN + 0.097*df_pib['AUS'] + 0.129*df_pib.DNK + 0.135*df_pib['ISL'] + 0.073*df_pib.IRL + 0.05*df_pib['NLD'] + 0.048*df_pib.PRT
 
-df_pib['United-States'].plot(label='USA')
+df_pib['USA'].plot(label='USA')
 sc.plot(label="Contrôle Synthétique")
+plt.vlines(109, 0, 1, linestyle = '--', color = 'red', label = 'Election de Trump')
 plt.legend()
 plt.show()
 
-
+'''
 Nous remarquons que le modèle est loin de reproduire la réalité, d'autant plus
 que les coefficients de pondérations donnés par le papier de Born (2020) ne 
 sont pas les mêmes. Nous allons alors passer à la validation croisée pour 
 essayer de régler ces problèmes.
-"""
+
+'''
