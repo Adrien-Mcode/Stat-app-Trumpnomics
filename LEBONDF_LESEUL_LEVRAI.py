@@ -19,7 +19,7 @@ import numpy as np
 headers = ['PIB', 'Emplois', 'Actifs', 'Chomage', 'Conso', 'Formation', 'Exports']
 ocde_df = pd.DataFrame(columns = headers.append('Pays'))
 
-liste_var = ['NAEXKP01', 'LREMTTTT', 'LRACTTTT', 'LRUNTTTT', 'NAEXKP02', 'NAEXKP04', 'NAEXKP06']
+liste_var = ['NAEXKP01', 'LFEMTTTT', 'LFACTTTT', 'LRUNTTTT', 'NAEXKP02', 'NAEXKP04', 'NAEXKP06']
 
 
 
@@ -41,9 +41,9 @@ for country in pays_ocde.keys():
     d = {col:var_df for col, var_df in zip(headers, [country_df['{0}'.format(var)]["STSA"] for var in liste_var])}
     country_bon_df = pd.DataFrame(d)
     
-    qs = country_bon_df.index.str.replace(r'(Q\d) (\d+)', r'\2-\1')
+    # qs = country_bon_df.index.str.replace(r'(Q\d) (\d+)', r'\2-\1')
     country_bon_df = country_bon_df.T
-    country_bon_df.columns = qs
+    # country_bon_df.columns = qs
     country_bon_df['Pays'] = country
     ocde_df = pd.concat([ocde_df, country_bon_df], axis=0)
 
@@ -60,4 +60,4 @@ df_countries.columns = new_index
 df_countries.drop(['Variables', 'Pays'], inplace=True)
 
 
-df_countries.to_csv(r"C:\Users\adxva\OneDrive\Bureau\ENSAE 2A - S1\STAT APP\Stat-app-Trumpnomics\df_countries.csv")
+# df_countries.to_csv(r"C:\Users\Asus\Desktop\Jérémie\Fac_ENSAE\Stat app'\Stat-app-Trumpnomics\df_countries.csv")
