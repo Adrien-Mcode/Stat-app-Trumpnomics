@@ -25,6 +25,7 @@ variables = ['Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports', 'Formation', 'P
 data = pd.read_csv(r'df_countries.csv', header=[0,1])
 
 
+
 # Pour répliquer le papier, il faut retirer la Grèce et la Turquie
 
 #On supprime les inégalités qui ne nous intéressent pas pour l'instant.
@@ -49,17 +50,43 @@ for i in variables :
     df_ct = pd.concat([df_ct, interm], axis=0)                      #On concatène le df ainsi créé avec les autres
 
 
+df_ct.rename(columns=pays_ocde, inplace=True)
 df_ct.drop(list(d for d in range(1, 20)), inplace=True) # On commence en 1995
 
 df_ct2 = df_ct[df_ct["Variables"].isin(['PIB', 'Actifs', 'Emplois'])].dropna()
 
+# Nous créons aussi un df pour calculer les moyennes agrégées requises
+
+data_mean = data.copy()
+for pays in pays_ocde.keys():
+   data_mean[pays] = data_mean[pays].assign(Conso=lambda x: x.Conso / x.PIB)
+
+data_mean.rename(columns={'Conso': 'Conso_share'}, inplace=True)
+
+for pays in pays_ocde.keys():
+    data_mean[pays] = data_mean[pays].assign(Emplois=lambda x: np.log(x.PIB/x.Emplois) - np.log(x.PIB.shift()/x.Emplois.shift()))
+
+data_mean.rename(columns={'Emplois': 'Prod_growth'}, inplace=True)
+
+for i in pays_ocde.keys() :
+    data_mean=data_mean.drop([(i,'PIB'),(i,'Actifs')], axis=1)
+    
+df_ct_mean = pd.DataFrame()
+for i in ['Chomage', 'Conso_share', 'Prod_growth','Exports', 'Formation']:
+    interm = data_mean.xs(str(i), axis=1, level=1, drop_level=True)   #On prend uniquement les colonnes qui se rapporte à une variable avec .xs
+    interm = interm.drop(0, axis=0)                                #On enlève la ligne d'indice 0 qui est vide (seulement des nan)
+    interm['Variables'] = str(i)                                    #on rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
+    df_ct_mean = pd.concat([df_ct_mean, interm], axis=0)
+
+df_ct_mean.rename(columns=pays_ocde, inplace=True)
+
 # df_ct2[df_ct2["Variables"]=="PIB"]['USA']
 
 # On mesure le PIB en déviation par rapport à l'année 1995
+for var in ['PIB', 'Actifs', 'Emplois']:    
+    for pays in df_ct2.drop('Variables', 1).columns:    
+        df_ct2[df_ct2["Variables"]==var] = df_ct2[df_ct2["Variables"]==var].assign(**{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
-for pays in df_ct2.drop('Variables', 1).columns:
-    
-    df_ct2[df_ct2["Variables"]=="PIB"] = df_ct2[df_ct2["Variables"]=="PIB"].assign(**{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
 #On créé les matrices pour la formulation du problème :
 '''  
@@ -80,18 +107,18 @@ X0 = X0.to_numpy()
 
 np.set_printoptions(suppress=True) # Pcq relou les notations avec exponentielles
 
-X1 = df_ct2[['United-States', 'Variables']]
+X1 = df_ct2[['USA', 'Variables']]
 X1 = X1.drop(list(d for d in range(109,120)))
-X1_mean = X1.groupby('Variables').mean().reset_index()
+X1_mean = df_ct_mean[['USA', 'Variables']].groupby('Variables').mean().reset_index()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
 X1 = X1.values
 
 # Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
 # correspondre à X0 qui, lui, en aura
 
-X0 = df_ct2.drop('United-States', 1)
+X0 = df_ct2.drop('USA', 1)
 X0 = X0.drop(list(d for d in range(109,120)))
-X0_mean = X0.groupby('Variables').mean().reset_index()
+X0_mean = df_ct_mean.drop('USA', 1).groupby('Variables').mean().reset_index()
 X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
 X0 = X0.values
 
@@ -121,7 +148,7 @@ print("The norm of the residual is ", cvx.norm(X0@x - X1, p=2).value)
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 # Parce que là aussi les notations expo rendent les résultats illisibles
 
-country_list = df_ct.dropna().drop(['United-States', 'Variables'], axis=1)
+country_list = df_ct.dropna().drop(['USA', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 coeff
 
