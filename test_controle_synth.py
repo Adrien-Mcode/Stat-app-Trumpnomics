@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import cvxpy as cvx
 from scipy.optimize import differential_evolution, LinearConstraint
 from sklearn.model_selection import train_test_split
+from scipy.linalg import sqrtm
 
 
 pays_ocde = {"Germany" :'DEU',"Australia" :'AUS',"Austria":'AUT',"Belgium":'BEL',"Canada":'CAN',"Denmark":'DNK',"Spain":'ESP',
@@ -154,7 +155,7 @@ print("The norm of the residual is ", cvx.norm(X0@x - X1, p=2).value)
 
 X0_train,X0_test,X1_train,X1_test = train_test_split(X0,X1,test_size=0.2)
 
-V_sqrt = cvx.Parameter((123,123),diag =True)
+V_sqrt = cvx.Parameter((123,123))
 x = cvx.Variable((24,1),nonneg=True)                        #On définit un vecteur de variables cvxpy
 cost = cvx.norm(V_sqrt@(X1_train - X0_train@x), p=2)        #on définit la fonction de cout : norme des résidus
 constraints = [cvx.sum(x)==1]                               #La contrainte
@@ -163,22 +164,21 @@ prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le prob
 def loss_V(V):
     #V_sqrt sera mis au carré donc on dois toujours mettre dans celui ci 
     #la racine de V
-    V_sqrt.value = V**(1/2)
+    V_sqrt.value = np.diag(V)
     prob.solve()
-    return((X1_test - X0_test@x.value))
+    print(((X1_test - X0_test@x.value).T@(X1_test - X0_test@x.value))[0,0])
+    return(((X1_test - X0_test@x.value).T@(X1_test - X0_test@x.value))[0,0])
 
 def diffevo_optimize():
     #Uses the differential evolution optimizer from scipy to solve for synthetic control
     
     contrainte = LinearConstraint(np.ones((1,123)), 1, 1)
     bounds = [(0,1) for i in range(123)]
-    result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte)
+    result = differential_evolution(loss_V,bounds,maxiter=50,constraints=contrainte)
         
     V = result.x
         
     return V
-
-
 
 
 # Visualisation (ATTENTION NON MODIFIEE)
