@@ -12,7 +12,9 @@ import cvxpy as cvx
 from scipy.optimize import differential_evolution, LinearConstraint
 from sklearn.model_selection import train_test_split
 from scipy.linalg import sqrtm
+from random import seed
 
+seed(3)
 
 pays_ocde = {"Germany" :'DEU',"Australia" :'AUS',"Austria":'AUT',"Belgium":'BEL',"Canada":'CAN',"Denmark":'DNK',"Spain":'ESP',
              "Finland":'FIN',"France":'FRA',"Hungary":'HUN',"Ireland":'IRL', "Iceland": 'ISL', "Italy":'ITA', 'Korea': 'KOR',
@@ -26,7 +28,7 @@ variables = ['Actifs', 'Chomage', 'Conso', 'Emplois', 'Exports', 'Formation', 'P
 
 #On importe les données
 data = pd.read_csv(r'df_countries.csv', header=[0,1])
-
+data = data.set_index('Variable')
 
 
 # Pour répliquer le papier, il faut retirer la Grèce et la Turquie
@@ -137,6 +139,7 @@ constraints = [x>=0, cvx.sum(x)==1]                     #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)  #On définit le problème
 prob.solve()                                        #On le résout
 
+x_solve = x.value
 #https://stackoverflow.com/questions/65526377/cvxpy-returns-infeasible-inaccurate-on-quadratic-programming-optimization-proble 
 #explication de pourquoi avec sum_square ça ne fonctionnait pas
 
@@ -158,6 +161,7 @@ X0_train,X0_test,X1_train,X1_test = train_test_split(X0,X1,test_size=0.2)
 V_sqrt = cvx.Parameter((123,123))
 x = cvx.Variable((24,1),nonneg=True)                        #On définit un vecteur de variables cvxpy
 cost = cvx.norm(V_sqrt@(X1_train - X0_train@x), p=2)        #on définit la fonction de cout : norme des résidus
+#cost = cvx.sum(V_sqrt @ cvx.square(X1_train - X0_train@x))
 constraints = [cvx.sum(x)==1]                               #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le problème
 
@@ -166,15 +170,15 @@ def loss_V(V):
     #la racine de V
     V_sqrt.value = np.diag(V)
     prob.solve()
-    print(((X1_test - X0_test@x.value).T@(X1_test - X0_test@x.value))[0,0])
-    return(((X1_test - X0_test@x.value).T@(X1_test - X0_test@x.value))[0,0])
+    #print(((X1_test - X0_test @ x.value).T@(X1_test - X0_test @ x.value))[0,0])
+    return(((X1_test - X0_test @ x.value).T@(X1_test - X0_test @ x.value))[0,0])
 
 def diffevo_optimize():
     #Uses the differential evolution optimizer from scipy to solve for synthetic control
     
     contrainte = LinearConstraint(np.ones((1,123)), 1, 1)
     bounds = [(0,1) for i in range(123)]
-    result = differential_evolution(loss_V,bounds,maxiter=50,constraints=contrainte)
+    result = differential_evolution(loss_V,bounds,maxiter=1,constraints=contrainte)
         
     V = result.x
         
@@ -189,21 +193,23 @@ pd.set_option('display.float_format', lambda x: '%.3f' % x)
 
 country_list = df_ct.dropna().drop(['USA', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
-coeff
+print(coeff)
 
 
 # Commençons par visualiser l'écart de tendance en PIB
 
 df_pib = df_ct2[df_ct2["Variables"]=="PIB"]
-df_pib.drop(df_pib.columns.difference(['USA', 'GBR', 'AUS', 'DNK', 'ISL', 'IRL', 'JPN', 'KOR', 'NLD', 'PRT']), 1, inplace=True)
-df_pib.dropna(inplace=True)
-#df_pib = df_pib.reset_index().drop('index', 1)
+#df_pib.drop(df_pib.columns.difference(['USA', 'GBR', 'AUS', 'DNK', 'ISL', 'IRL', 'JPN', 'KOR', 'NLD', 'PRT']), 1, inplace=True)
+#df_pib = df_pib.dropna()
+df_pib = df_pib.reset_index().drop('index', 1)
 
-sc = 0.390*df_pib['GBR'] + 0.077*df_pib.JPN + 0.097*df_pib['AUS'] + 0.129*df_pib.DNK + 0.135*df_pib['ISL'] + 0.073*df_pib.IRL + 0.05*df_pib['NLD'] + 0.048*df_pib.PRT
+sc = df_pib.drop(['Variables','USA'],axis = 1)@ x.value
 
-df_pib['USA'].plot(label='USA')
-sc.plot(label="Contrôle Synthétique")
-plt.vlines(109, 0, 1, linestyle = '--', color = 'red', label = 'Election de Trump')
+#df_pib[('USA')].plot(label='USA')
+#sc.plot(label="Contrôle Synthétique")
+plt.plot(df_pib[('USA')])
+plt.plot(sc)
+plt.vlines(84, 0, 1, linestyle = '--', color = 'red', label = 'Election de Trump')
 plt.legend()
 plt.show()
 
