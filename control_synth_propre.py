@@ -223,18 +223,22 @@ def synth_plot (W,pays) :
     X1,X0 = prep_donnee(pays)
     sc = df_pib.drop(['Variables',pays],axis = 1)@ W
     
-    plt.plot(df_chomage[pays].values,)
-    plt.plot(df_chomage.drop(pays,axis = 1).values@W)
-    plt.title('Courbe du chomage')
-    plt.show()
-    plt.close()
-    
-    plt.plot(df_pib[pays].values)
-    plt.plot(sc.values)
+    fig = plt.figure(0)
+    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),sc.values, yerr=0.1)
+    plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_pib[pays].values)
     plt.title('Graphique du PIB')
     plt.show()
     plt.close()
     
+    fig = plt.figure(0)
+    plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_chomage[pays].values)
+    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_chomage.drop(['Variables',pays],axis = 1)@ W, yerr = 2*RMSPE)
+    plt.title('Courbe du chomage')
+    plt.show()
+    plt.close()
+
+    
 X1,X0 = prep_donnee('United-States')
 W_US,V_US,RMSPE_US = synth(X1,X0)
 synth_plot(W_US,'United-States')
+
