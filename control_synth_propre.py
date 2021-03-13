@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import cvxpy as cvx
 from scipy.optimize import differential_evolution, LinearConstraint
 #from sklearn.model_selection import train_test_split
-from math import sqrt
 from random import seed
+from time import clock
 
 seed(3)
 
@@ -97,7 +97,6 @@ X1 = df_ct[['United-States', 'Variables']]
 X1 = X1.drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
 X1_mean = df_ct_mean[['United-States', 'Variables']].groupby('Variables').mean().reset_index()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
-X_interm = X1
 X1 = X1.values
 
 # Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
@@ -116,25 +115,36 @@ X0 = X0.values
 
 V_opt = cvx.Parameter((154,154),PSD = True)                 #On définit V qui est un vecteur de paramètre
 x = cvx.Variable((24,1),nonneg=True)                        #On définit un vecteur de variables cvxpy
-cost = cvx.quad_form(X1 - X0@x,V_opt)                       #On définit la fonction de cout : norme des résidus
+#cost = cvx.quad_form((X1 - X0@x),V_opt)                     #On définit la fonction de cout : norme des résidus
+cost = cvx.pnorm(V_opt@(X1 - X0@x))  
 constraints = [cvx.sum(x)==1]                               #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le problème
- 
+  
+
 #On définit une fonction qui renvoit le "cout" pour l'optimisation de la fonction V :
 def loss_V(V) :
-    V_opt.value = np.diag(abs(V))
-    prob.solve()
-    return(((df_chomage['United-States'].values - df_chomage.drop('United-States',axis = 1).values @ x.value).T@(df_chomage['United-States'].values - df_chomage.drop('United-States',axis = 1).values @ x.value))[0,0])
-   
+    V_opt.value = np.diag(np.abs(V)**1/2)
+    prob.solve(warm_start = True)
+    return(np.linalg.norm((df_chomage['United-States'].values - df_chomage.drop('United-States',axis = 1).values@ x.value)))
+
+#Note de performance : utiliser la fonction pnorm plutot que quadform est plus avantageux (de peu, on gagne environ 8 minutes sur le temps d'éxecution total)
+
 #On définit et résout le problème d'optimisation en V : 
+
+tps1 = clock()
 
 contrainte = LinearConstraint(np.ones((1,154)), 1, 1)
 bounds = [(0,1) for i in range(154)]
-result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte)
-        
-V = np.diag(result.x)
+result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte,polish = False)
+
+tps2 = clock()
+print((tps2 - tps1)/60)
+
+V_opt.value = np.diag(result.x)
+prob.solve()
 W = x.value
-RMSPE = sqrt((X1 - X0@W).T@V@(X1 - X0@W))
+RMSPE = np.linalg.norm((X1 - X0@W))
+
 
 #------------ Affichage des Résultats ------------------------------------------
 
@@ -169,3 +179,62 @@ plt.legend()
 plt.show()
 plt.close()
 
+#------------ Partie passage en fonction : -------------------------------------
+
+def prep_donnee (pays):
+    X1 = df_ct[[pays, 'Variables']]
+    X1 = X1.drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
+    X1_mean = df_ct_mean[[pays, 'Variables']].groupby('Variables').mean().reset_index()
+    X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
+    X1 = X1.values
+    
+    X0 = df_ct.drop(pays, 1)
+    X0 = X0.drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
+    X0_mean = df_ct_mean.drop(pays, 1).groupby('Variables').mean().reset_index()
+    X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
+    X0 = X0.values
+    
+    return (X1,X0)
+
+def synth(X1,X0):
+    V_opt = cvx.Parameter((154,154),PSD = True)                 #On définit V qui est un vecteur de paramètre
+    x = cvx.Variable((24,1),nonneg=True)                        #On définit un vecteur de variables cvxpy
+    cost = cvx.pnorm(V_opt@(X1 - X0@x))                         #On définit la fonction de cout : norme des résidus
+    constraints = [cvx.sum(x)==1]                               #La contrainte
+    prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le problème
+    
+    tps1 = clock()
+
+    contrainte = LinearConstraint(np.ones((1,154)), 1, 1)
+    bounds = [(0,1) for i in range(154)]
+    result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte,polish = False)
+
+    tps2 = clock()
+    print((tps2 - tps1)/60)
+    
+    V_opt.value = np.diag(result.x)
+    prob.solve()
+    W = x.value
+    RMSPE = np.linalg.norm((X1 - X0@W))
+    
+    return(W,V_opt.value,RMSPE)
+
+def synth_plot (W,pays) :
+    X1,X0 = prep_donnee(pays)
+    sc = df_pib.drop(['Variables',pays],axis = 1)@ W
+    
+    plt.plot(df_chomage[pays].values,)
+    plt.plot(df_chomage.drop(pays,axis = 1).values@W)
+    plt.title('Courbe du chomage')
+    plt.show()
+    plt.close()
+    
+    plt.plot(df_pib[pays].values)
+    plt.plot(sc.values)
+    plt.title('Graphique du PIB')
+    plt.show()
+    plt.close()
+    
+X1,X0 = prep_donnee('United-States')
+W_US,V_US,RMSPE_US = synth(X1,X0)
+synth_plot(W_US,'United-States')
