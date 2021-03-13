@@ -224,21 +224,26 @@ def synth_plot (W,pays) :
     sc = df_pib.drop(['Variables',pays],axis = 1)@ W
     
     fig = plt.figure(0)
-    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),sc.values, yerr=0.1)
     plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_pib[pays].values)
+    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),
+                 sc.values,
+                 np.linalg.norm(df_pib[pays].values - sc.values)/96)
     plt.title('Graphique du PIB')
     plt.show()
     plt.close()
     
-    fig = plt.figure(0)
-    plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_chomage[pays].values)
-    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_chomage.drop(['Variables',pays],axis = 1)@ W, yerr = 2*RMSPE)
+    fig1 = plt.figure(1)
+    plt.plot(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
+    plt.errorbar(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),
+                 df_chomage.drop(pays,axis = 1)@ W,
+                 2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
     plt.title('Courbe du chomage')
     plt.show()
     plt.close()
 
-    
+
 X1,X0 = prep_donnee('United-States')
 W_US,V_US,RMSPE_US = synth(X1,X0)
 synth_plot(W_US,'United-States')
 
+#Il y a unproblème à un moment avec cles errorbars
