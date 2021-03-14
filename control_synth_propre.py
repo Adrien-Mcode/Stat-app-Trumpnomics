@@ -17,6 +17,7 @@ from scipy.optimize import differential_evolution, LinearConstraint
 #from sklearn.model_selection import train_test_split
 from random import seed
 from time import clock
+from math import sqrt
 
 seed(3)
 
@@ -227,7 +228,7 @@ def synth_plot (W,pays) :
     plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_pib[pays].values)
     plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),
                  sc.values,
-                 np.linalg.norm(df_pib[pays].values - sc.values)/96)
+                 2*sqrt(((df_pib[pays].values.reshape(96,1) - sc.values).T@(df_pib[pays].values.reshape(96,1) - sc.values))/96))
     plt.title('Graphique du PIB')
     plt.show()
     plt.close()
@@ -235,8 +236,8 @@ def synth_plot (W,pays) :
     fig1 = plt.figure(1)
     plt.plot(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
     plt.errorbar(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),
-                 df_chomage.drop(pays,axis = 1)@ W,
-                 2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
+                 (df_chomage.drop(pays,axis = 1)@ W).values,
+                 2*sqrt(((df_chomage[pays].values.reshape(89,1) - df_chomage.drop(pays,axis = 1).values@ W).T@(df_chomage[pays].values.reshape(89,1) - df_chomage.drop(pays,axis = 1).values@ W))/89))
     plt.title('Courbe du chomage')
     plt.show()
     plt.close()
