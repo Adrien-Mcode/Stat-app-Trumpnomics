@@ -16,7 +16,7 @@ import cvxpy as cvx
 from scipy.optimize import differential_evolution, LinearConstraint
 #from sklearn.model_selection import train_test_split
 from random import seed
-from time import clock
+# from time import clock
 
 seed(3)
 
@@ -84,7 +84,7 @@ df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(d
 #Note : on a une problème de valeurs manquantes sur ce df, pour l'instant on utilise donc 
 #la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme 
 #faire autre chose avec : 
-df_chomage = df_chomage.fillna(0) 
+df_chomage = df_chomage.dropna() 
    
 #------------ Partie Modélisation ----------------------------------------------
 
@@ -131,14 +131,14 @@ def loss_V(V) :
 
 #On définit et résout le problème d'optimisation en V : 
 
-tps1 = clock()
+# tps1 = clock()
 
 contrainte = LinearConstraint(np.ones((1,154)), 1, 1)
 bounds = [(0,1) for i in range(154)]
 result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte,polish = False)
 
-tps2 = clock()
-print((tps2 - tps1)/60)
+# tps2 = clock()
+# print((tps2 - tps1)/60)
 
 V_opt.value = np.diag(result.x)
 prob.solve()
@@ -203,14 +203,14 @@ def synth(X1,X0):
     constraints = [cvx.sum(x)==1]                               #La contrainte
     prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le problème
     
-    tps1 = clock()
+    # tps1 = clock()
 
     contrainte = LinearConstraint(np.ones((1,154)), 1, 1)
     bounds = [(0,1) for i in range(154)]
     result = differential_evolution(loss_V,bounds,maxiter=100,constraints=contrainte,polish = False)
 
-    tps2 = clock()
-    print((tps2 - tps1)/60)
+    # tps2 = clock()
+    # print((tps2 - tps1)/60)
     
     V_opt.value = np.diag(result.x)
     prob.solve()
@@ -224,19 +224,32 @@ def synth_plot (W,pays) :
     sc = df_pib.drop(['Variables',pays],axis = 1)@ W
     
     fig = plt.figure(0)
-    plt.plot(np.linspace(1995,2016,df_pib[pays].values.shape[0]),df_pib[pays].values)
-    plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),
-                 sc.values,
-                 np.linalg.norm(df_pib[pays].values - sc.values)/96)
-    plt.title('Graphique du PIB')
+    plt.plot(np.linspace(1996,2019,df_pib[pays].values.shape[0]),
+             df_pib[pays].values*100, label='{0}'.format(pays))
+    plt.plot(np.linspace(1996,2019,df_pib[pays].values.shape[0]), sc.values*100,
+             label='Synthetic Control')    
+    plt.vlines(2017, 0, 100, linestyle='--', color='red', label='Election de Trump')
+
+    # plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),
+    #             sc.values,
+    #             2*(df_pib[pays].values - sc.values).std()/(96)**(1/2))
+    error = (df_pib[pays].values - sc.values).std()/(df_pib[pays].values.shape[0])**(1/2)
+    plt.title('Graphique du PIB : {0}'.format(pays))
+    plt.xlabel('Années')
+    plt.ylabel('Écart du PIB par rapport à 1995 en pourcentage')
+    plt.fill_between(np.linspace(1996,2019,df_pib[pays].values.shape[0]),
+                     df_pib[pays].values*100 - error*100, df_pib[pays].values*100 + error*100,
+                     color='0.75')
+    plt.legend()
     plt.show()
     plt.close()
     
     fig1 = plt.figure(1)
-    plt.plot(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
-    plt.errorbar(np.linspace(1995,2016,df_chomage[pays].values.shape[0]),
-                 df_chomage.drop(pays,axis = 1)@ W,
-                 2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
+    plt.plot(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
+    # plt.errorbar(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),
+    #             df_chomage.drop(pays,axis = 1)@ W,
+    #             2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
+    
     plt.title('Courbe du chomage')
     plt.show()
     plt.close()
