@@ -11,7 +11,7 @@ Travail sur la base de l'OCDE
 
 import pandas as pd
 
-ocde_df = pd.read_csv(r"https://raw.githubusercontent.com/Adrien-Mcode/Stat-app-Trumpnomics/main/Tableaux_csv/ocde2.csv?token=ARARNIDTKBOZ6UOVAIPROP3ACR4QK")
+ocde_df = pd.read_csv("Tableaux_csv/ocde2.csv")
 
 ocde_df.rename(columns={'Unnamed: 0':'Variables'}, inplace=True)
 
@@ -21,3 +21,5 @@ new_index = pd.MultiIndex.from_tuples(ind_tuple, names=["Pays", "Variables"])
 tocde = ocde_df.T.copy()
 tocde.columns = new_index
 tocde.drop(['Variables', 'Pays'], inplace=True)
+
+tocde
