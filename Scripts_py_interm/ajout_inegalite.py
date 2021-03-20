@@ -116,7 +116,7 @@ tocde = tocde.drop("date", axis=1)
 
 tocde
 
-# tocde.to_csv('ocde_df.csv',index = True)
+tocde.to_csv('ocde_df.csv',index=True)
 
 '''
 #ajout du coefficient de GINI :
