@@ -90,10 +90,14 @@ for var in ['PIB', 'Actifs', 'Emplois']:
 #On créé donc un df contenant tous les taux de chomage
 df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
 
-#Note : on a une problème de valeurs manquantes sur ce df, pour l'instant on utilise donc 
-#la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme 
-#faire autre chose avec : 
-df_chomage = df_chomage.dropna() 
+df_chomage2 = pd.read_csv("chomage_SCM.csv")
+df_chomage2.rename(columns={'Unnamed: 0':'Time'}, inplace=True)
+df_chomage2.set_index('Time', inplace=True)
+
+# Note : on a une problème de valeurs manquantes sur ce df, pour l'instant on utilise donc 
+# la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme 
+# faire autre chose avec : 
+#df_chomage = df_chomage.dropna() 
    
 #------------ Partie Modélisation ----------------------------------------------
 
@@ -253,19 +257,45 @@ def synth_plot (W,pays) :
     plt.show()
     plt.close()
     
-    fig1 = plt.figure(1)
-    plt.plot(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
+    
+    # fig1 = plt.figure(1)
+    # plt.plot(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
     # plt.errorbar(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),
     #             df_chomage.drop(pays,axis = 1)@ W,
     #             2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
     
-    plt.title('Courbe du chomage')
-    plt.show()
-    plt.close()
+    # plt.title('Courbe du chomage')
+    # plt.show()
+    # plt.close()
 
 
 X1,X0 = prep_donnee('United-States')
 W_US,V_US,RMSPE_US = synth(X1,X0)
 synth_plot(W_US,'United-States')
 
-#Il y a unproblème à un moment avec cles errorbars
+"""
+# Graphes pour l'emploi (IL MANQUE TROP DE DONNÉES)
+
+df_emplois = df_ct[df_ct.Variables=='Emplois']
+
+sc2 = df_emplois.drop(['Variables', 'United-States'], 1)@W_US
+plt.plot(np.linspace(2005,2019, df_emplois['United-States'].values.shape[0]), 
+         df_emplois['United-States'].values*100, label='{0}'.format('United-States'))
+plt.plot(np.linspace(2005,2019, df_emplois['United-States'].values.shape[0]), sc2.values*100, 
+         label='Synthetic Control')    
+plt.vlines(2017, 0, 40, linestyle='--', color='red', label='Election de Trump')
+
+error2 = (df_emplois['United-States'].values - sc2.values).std()/(df_emplois['United-States'].values.shape[0])**(1/2)
+plt.title('Graphique du PIB : {0}'.format('United-States'))
+plt.xlabel('Années')
+plt.ylabel('Écart de l\' emploi par rapport à 1995 en pourcentage')
+plt.fill_between(np.linspace(2005,2019,df_emplois['United-States'].values.shape[0]), 
+                 df_emplois['United-States'].values*100 - error2*100, df_emplois['United-States'].values*100 + error2*100, 
+                 color='0.75')
+plt.legend()
+plt.show()
+plt.close()
+
+df_emplois['United-States']
+"""
+
