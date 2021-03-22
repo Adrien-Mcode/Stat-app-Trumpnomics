@@ -44,9 +44,36 @@ data = pd.read_csv(r'df_countries.csv', header=[0,1])       #On importe les donn
 data.drop(list(d for d in range(0, 20)), inplace=True)      #On supprime les lignes après 1995
 data = data.reset_index().set_index('Pays')                               #On met en index "Pays" qui est en fait la date au format str
 
-
 #On trie les données pour améliorer les performances et éviter les warnings:
 data = data.sort_index(axis=1)
+
+#Ajout des données sur le chômage plus complète 
+
+df_cho = pd.read_csv(r'donnee_chomage_Ad.csv')
+df_cho = df_cho[(df_cho['LOCATION'].isin(pays_ocde.values())) & 
+                (df_cho['VARIABLE']=='UNR')].set_index(['LOCATION','Time'])
+
+df_cho = df_cho.drop(['Country',
+                      'VARIABLE',
+                      'Variable',
+                      'FREQUENCY',
+                      'Frequency',
+                      'TIME',
+                      'Unit Code',
+                      'Unit',
+                      'PowerCode Code',
+                      'PowerCode',
+                      'Reference Period Code',
+                      'Reference Period',
+                      'Flag Codes',
+                      'Flags'],axis = 1)
+
+df_chomage =pd.DataFrame()
+for i in sorted(pays_ocde.keys()) :
+    print(i)
+    interm = df_cho.loc[pays_ocde[i]]
+    interm.columns = [i]
+    df_chomage = pd.concat([df_chomage, interm], axis=1) 
 
 
 #On construit le df qui va nous contenir les séries temporelles pour le contrôle synthétique :  
@@ -85,7 +112,7 @@ for var in ['PIB', 'Actifs', 'Emplois']:
     for pays in df_ct.drop('Variables', 1).columns:    
         df_ct[df_ct["Variables"]==var] = df_ct[df_ct["Variables"]==var].assign(**{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
-
+'''
 #Les auteurs précisent qu'ils prennent comme critère de validation la qualité de la modélisation sur le taux de chomage.
 #On créé donc un df contenant tous les taux de chomage
 df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
@@ -94,7 +121,8 @@ df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(d
 #la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme 
 #faire autre chose avec : 
 df_chomage = df_chomage.dropna() 
-   
+'''
+
 #------------ Partie Modélisation ----------------------------------------------
 
 np.set_printoptions(suppress=True) # afin de rendre les sorties plus lisibles, on supprime les notations exponentielles.
