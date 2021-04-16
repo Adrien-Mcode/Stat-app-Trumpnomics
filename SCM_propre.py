@@ -66,13 +66,13 @@ df_cho = df_cho.drop(['Country',
                       'Reference Period Code',
                       'Reference Period',
                       'Flag Codes',
-                      'Flags'],axis = 1)
+                      'Flags'],
+                     axis=1)
 
 df_chomage =pd.DataFrame()
 for i in sorted(pays_ocde.keys()) :
-    print(i)
     interm = df_cho.loc[pays_ocde[i]]
-    interm.columns = [i]
+    interm.columns = [[i]]
     df_chomage = pd.concat([df_chomage, interm], axis=1) 
 
 
@@ -152,7 +152,7 @@ X0 = X0.values
 
 V_opt = cvx.Parameter((154,154),PSD = True)                 #On définit V qui est un vecteur de paramètre
 x = cvx.Variable((24,1),nonneg=True)                        #On définit un vecteur de variables cvxpy
-#cost = cvx.quad_form((X1 - X0@x),V_opt)                     #On définit la fonction de cout : norme des résidus
+#cost = cvx.quad_form((X1 - X0@x),V_opt)                    #On définit la fonction de cout : norme des résidus
 cost = cvx.pnorm(V_opt@(X1 - X0@x))  
 constraints = [cvx.sum(x)==1]                               #La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)         #On définit le problème
@@ -258,19 +258,16 @@ def synth(X1,X0):
 
 def synth_plot (W,pays) :
     X1,X0 = prep_donnee(pays)
-    sc = df_pib.drop(['Variables',pays],axis = 1)@ W
-    
+    sc_pib = df_pib.drop(['Variables',pays],axis = 1)@ W
+    sc_chomage = df_chomage.drop(pays,axis = 1)@ W
     fig = plt.figure(0)
     plt.plot(np.linspace(1996,2019,df_pib[pays].values.shape[0]),
              df_pib[pays].values*100, label='{0}'.format(pays))
-    plt.plot(np.linspace(1996,2019,df_pib[pays].values.shape[0]), sc.values*100,
-             label='Synthetic Control')    
+    plt.plot(np.linspace(1996,2019,df_pib[pays].values.shape[0]), sc_pib.values*100,
+             label='Synthetic Control')
     plt.vlines(2017, 0, 100, linestyle='--', color='red', label='Election de Trump')
 
-    # plt.errorbar(np.linspace(1995,2016,df_pib[pays].values.shape[0]),
-    #             sc.values,
-    #             2*(df_pib[pays].values - sc.values).std()/(96)**(1/2))
-    error = (df_pib[pays].values - sc.values).std()/(df_pib[pays].values.shape[0])**(1/2)
+    error = (df_pib[pays].values - sc_pib.values).std()/(df_pib[pays].values.shape[0])**(1/2)
     plt.title('Graphique du PIB : {0}'.format(pays))
     plt.xlabel('Années')
     plt.ylabel('Écart du PIB par rapport à 1995 en pourcentage')
@@ -280,13 +277,10 @@ def synth_plot (W,pays) :
     plt.legend()
     plt.show()
     plt.close()
-    
+
     fig1 = plt.figure(1)
     plt.plot(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),df_chomage[pays].values)
-    # plt.errorbar(np.linspace(1996,2019,df_chomage[pays].values.shape[0]),
-    #             df_chomage.drop(pays,axis = 1)@ W,
-    #             2*np.linalg.norm((df_chomage[pays] - df_chomage.drop(pays,axis = 1)@ W)/89))
-    
+    plt.plot(np.linspace(1996, 2019, df_chomage[pays].values.shape[0]), sc_chomage.values)
     plt.title('Courbe du chomage')
     plt.show()
     plt.close()
@@ -296,4 +290,5 @@ X1,X0 = prep_donnee('United-States')
 W_US,V_US,RMSPE_US = synth(X1,X0)
 synth_plot(W_US,'United-States')
 
-#Il y a unproblème à un moment avec cles errorbars
+#Maintenant que l'on a automatisé le contrôle synthétique, on va pouvoir faire des tests placebo in time :
+

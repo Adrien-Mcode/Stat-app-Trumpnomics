@@ -1,2 +1,7 @@
 __pycache__/
 __init__.py 
+\.xml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml
