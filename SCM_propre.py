@@ -26,7 +26,6 @@ from scipy.optimize import differential_evolution, LinearConstraint
 # from sklearn.model_selection import train_test_split
 from random import seed
 
-# from time import clock
 
 seed(3)
 
@@ -224,23 +223,29 @@ plt.close()
 
 # ------------ Partie passage en fonction : -------------------------------------
 
-def liste_date(date = [2016,2019]):
-    liste_date = []
+def liste_date(date = [2017,2019]):
+    liste_d = []
     for i in range(date[0], date[1] + 1):
         for j in range(1, 5):
-            liste_date.append((str(i) + '-Q' + str(j),))
-    return(liste_date)
+            liste_d.append((str(i) + '-Q' + str(j),))
+    return(liste_d)
 
-def prep_donnee(pays,date = [2016,2019]):
+def prep_donnee(pays,date = [2017,2019],placebo=False):
     X1 = df_ct[[pays, 'Variables']]
-    X1 = X1.drop(liste_date(date))
+    if placebo :
+        X1 = X1.drop(date)
+    else:
+        X1 = X1.drop(liste_date(date))
     #X1 = X1.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
     X1_mean = df_ct_mean[[pays, 'Variables']].groupby('Variables').mean().reset_index()
     X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
     X1 = X1.values
 
     X0 = df_ct.drop(pays, 1)
-    X0 = X1 = X1.drop(liste_date(date))
+    if placebo :
+        X0 = X0.drop(date)
+    else:
+        X0 = X0.drop(liste_date(date))
     #X0 = X0.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
     X0_mean = df_ct_mean.drop(pays, 1).groupby('Variables').mean().reset_index()
     X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
@@ -250,16 +255,16 @@ def prep_donnee(pays,date = [2016,2019]):
 
 
 def synth(X1, X0):
-    V_opt = cvx.Parameter((154, 154), PSD=True)  # On définit V qui est un vecteur de paramètre
-    x = cvx.Variable((24, 1), nonneg=True)  # On définit un vecteur de variables cvxpy
+    V_opt = cvx.Parameter((X0.shape[0], X0.shape[0]), PSD=True)  # On définit V qui est un vecteur de paramètre
+    x = cvx.Variable((X0.shape[1], 1), nonneg=True)  # On définit un vecteur de variables cvxpy
     cost = cvx.pnorm(V_opt @ (X1 - X0 @ x))  # On définit la fonction de cout : norme des résidus
     constraints = [cvx.sum(x) == 1]  # La contrainte
     prob = cvx.Problem(cvx.Minimize(cost), constraints)  # On définit le problème
 
     # tps1 = clock()
 
-    contrainte = LinearConstraint(np.ones((1, 154)), 1, 1)
-    bounds = [(0, 1) for i in range(154)]
+    contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
+    bounds = [(0, 1) for i in range(X0.shape[0])]
     result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
 
     # tps2 = clock()
@@ -269,7 +274,7 @@ def synth(X1, X0):
     prob.solve()
     W = x.value
     RMSPE_train = np.linalg.norm((X1 - X0 @ W))
-    return W, V_opt.value, RMSPE_train,RMSPE_test
+    return W, V_opt.value, RMSPE_train
 
 
 def synth_plot(W, pays):
@@ -313,14 +318,30 @@ W_US, V_US, RMSPE_US = synth(X1, X0)
 synth_plot(W_US, 'United-States')
 
 
-# Maintenant que l'on a automatisé le contrôle synthétique, on va pouvoir faire des tests placebo in time :
+# ------------Partie construction d'un placebo ---------------------------------------------
 def in_time_placebo(pays):
     RMSPE_train = []
     RMSPE_test = []
-    for t in range(1996,2019):
-        date = liste_date([t,t+3])
-        X1, X0 = prep_donnee('United-States',date = [t,t+3])
+    date = list(liste_date([1996,2016])[t:t+13] for t in range(92))
+    for t in date:
+        X1, X0 = prep_donnee('United-States',date = t,placebo=True)
         W_US, V_US, RMSPE_US = synth(X1, X0)
-        RMSPE_train.append(RMSPE_US)
-        RMSPE_test.append(np.linalg.norm((df_pib.loc[date,pays]- df_pib.drop(pays,axis = 1).loc(date))@W))
+        RMSPE_train.append(RMSPE_US/(len(date)-len(t))**1/2)
+        RMSPE_test.append(np.linalg.norm((df_pib.loc[date,pays].values- (df_pib.drop([pays,'Variables'],axis = 1).loc[date].values@W).reshape(16)))/len(t)**(1/2))
+    return (RMSPE_test,RMSPE_train)
+
+RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
+print(RMSPE_test_US,RMSPE_train_US)
+
+
+def plot_placebo(RMSPE_test,RMSPE_train):
+    df_RMSPE=pd.DataFrame
+    df_RMSPE['RMSPE_test'] = RMSPE_test
+    df_RMSPE['RMSPE_train'] = RMSPE_train
+    df_RMSPE['rap_RMSPE']=df_RMSPE['RMSPE_test']/df_RMSPE['RMSPE_train']
+    plt.hist(df_RMSPE['rap_RMSPE'].values)
+    return None
+plot_placebo(RMSPE_test_US,RMSPE_train_US)
+
+def in_space_placebo():
     return None
