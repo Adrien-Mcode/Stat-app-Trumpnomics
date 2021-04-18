@@ -1,0 +1,285 @@
+---
+title: "Synthetic Control Method using R"
+author: "Adrien VALLETTE et Lorelei DURAND"
+date: "17/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Titre
+
+Importation des librairies
+
+```{r, warning =FALSE, message=FALSE}
+
+library(Synth)
+library(SCtools)
+library(stringr)
+
+```
+
+## Données
+
+Après avoir importer la base, on observe sa forme puis on met la variable "TIME" au format numérique.
+
+```{r}
+data <- read.csv("dfR_complete.csv")
+summary(data)
+
+
+data$TIME <- str_replace_all(data$TIME, "[:punct:]Q1", ".00" )
+data$TIME <- str_replace_all(data$TIME, "[:punct:]Q2", ".25" )
+data$TIME <- str_replace_all(data$TIME, "[:punct:]Q3", ".50" )
+data$TIME <- str_replace_all(data$TIME, "[:punct:]Q4", ".75" )
+data <- transform(data, TIME = as.numeric(TIME))
+data$LOCATION <- as.character(data$LOCATION)
+summary(data)
+
+```
+
+On crée une liste de prédicteurs afin de réaliser la minimisation sur les séries temporelles souhaitées (PIB, Emplois et Actifs) en plus de covariables (moyenne entre 2015Q3 et 2016Q3 du taux de chômage, de la croissance de la productivité du travail, de la part de la consommation, de l'investissement et des exportations dans le PIB).
+
+```{r}
+list_predictor <- rep(list(list()), 261)
+
+#PIB
+for (i in 1:87) {
+  list_predictor[[i]] <- append(list_predictor[[i]], list('PIB', data$TIME[i+1], 'mean'))
+}
+#Emplois
+for (j in 1:87) {
+  list_predictor[[j+87]]  <- append(list_predictor[[j+87]], list('Emplois', data$TIME[j+1], 'mean'))
+}
+#Actifs
+for (k in 1:87) {
+  list_predictor[[k+174]]  <- append(list_predictor[[k+174]], list('Actifs', data$TIME[k+1], 'mean'))
+}
+```
+
+## Modélisation
+### Modèle baseline
+
+On utilise d'abord la fonction dataprep() du package "Synth", qui va préparer les vecteurs et matrices utilisées pour trouver la pondération. x1 est le vecteur pour l'unité traité (les Etats-Unis) des 3 séries temporelles et des 5 covariables, X0, la matrice équivalente pour les unités de contrôle (le donor pool), Z1 le vecteur de la variable d'intérêt (ici le taux de chômage) pour l'unité traité et Z0 la matrice de la variable d'intérêt pour chacun des pays du donor pool.
+
+```{r}
+dataprep.out <- dataprep(
+  foo = data,
+  predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+  predictors.op = "mean",
+  time.predictors.prior = 2015.50:2016.50,
+  special.predictors = list_predictor,
+  dependent = "Chomage",
+  unit.variable = "ID_country",
+  unit.names.variable = "LOCATION",
+  time.variable = "TIME",
+  treatment.identifier = 25,
+  controls.identifier = 1:24,
+  time.optimize.ssr = 1995.00:2016.50,
+  time.plot = 1995.00:2020.00)
+
+dataprep.out$X1
+#dataprep.out$X0  
+dataprep.out$Z1
+#dataprep.out$Z0
+```
+
+Résolution du problème de minisation à l'aide de la fonction synth() du package "Synth". Elle nous donne en sortie les valeurs prédites par le contrôle synthétique pour chacune des variables de la minimisation, la pondération W du contrôle synthétique et la pondération V des variables.
+
+```{r}
+start.time <- Sys.time()
+synth.out <- synth(data.prep.obj = dataprep.out, method = "BFGS")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+synth.tables <- synth.tab(dataprep.res = dataprep.out, synth.res = synth.out)
+synth.tables$tab.pred 
+synth.tables$tab.w
+synth.tables$tab.v
+gaps <- dataprep.out$Y1plot - (dataprep.out$Y0plot %*% synth.out$solution.w)
+
+```
+
+### Graphique du modèle baseline
+
+Pour le taux de chômage, le PIB, l'emploi et les actifs, on trace les courbes obtenus pour les Etats-Unis et le contrôle synthétique, l'intervalle de confiance étant obtenu par + ou - l'écart-type de la différence entre les vraies valeurs et celles prédites sur la période pré-traitement.
+
+```{r, echo = FALSE}
+graph_bl <- read.csv("graph_bl.csv")
+gaps_pib <- data$PIB[1718:1804] - graph_bl$USA_pib[1:87]
+sd_pib <- sd(gaps_pib)
+pib_p <- graph_bl$USA_pib + sd_pib
+pib_m <- graph_bl$USA_pib - sd_pib
+
+plot(data$TIME[2:101], data$PIB[1718:1817], ylab = 'PIB (en variation depuis 1995)', xlab = 'Time', ylim = c(0,1.2), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_bl$USA_pib, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], pib_p, col="black",lty=2)
+lines(data$TIME[1:101], pib_m, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+chom = graph_bl$sc_cho - sd(graph_bl$USA_cho - graph_bl$sc_cho)
+chop = graph_bl$sc_cho + sd(graph_bl$USA_cho - graph_bl$sc_cho)
+
+plot(data$TIME[1:101], graph_bl$USA_cho, ylab = 'Taux de chômage', xlab = 'Time', ylim = c(0,10), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_bl$sc_cho, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], chom, col="black",lty=2)
+lines(data$TIME[1:101], chop, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+empm = graph_bl$sc_emp - sd(graph_bl$USA_emp - graph_bl$sc_emp)
+empp = graph_bl$sc_emp + sd(graph_bl$USA_emp - graph_bl$sc_emp)
+
+plot(data$TIME[1:101], graph_bl$USA_emp, ylab = 'Emplois (en variation depuis 1995))', xlab = 'Time', ylim = c(0,0.8), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_bl$sc_emp, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], empm, col="black",lty=2)
+lines(data$TIME[1:101], empp, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 0.8, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+
+actm = graph_bl$sc_act - sd(graph_bl$USA_act - graph_bl$sc_act)
+actp = graph_bl$sc_act + sd(graph_bl$USA_act - graph_bl$sc_act)
+
+plot(data$TIME[1:101], graph_bl$USA_act, ylab = 'Actifs (en variation depuis 1995))', xlab = 'Time', ylim = c(0,0.8), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_bl$sc_act, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], actm, col="black",lty=2)
+lines(data$TIME[1:101], actp, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 0.8, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+
+```
+
+## Test de robustesse du modèle baseline
+
+Pour vérifier la solidité de notre modèle, on peut réaliser différents tests. Tout d'abord, le test du "leave-one-out" afin de vérifier que la qualité du contrôle synthétique n'est pas trop dépendant d'un pays du donor pool. Pour cela, on refait tourner le modèle en excluant tour à tour, les différents pays ayant obtenus une pondération importante dans le modèle baseline.
+On voit avec le graphique que la qualité du fit et la prédiction reste proche, même en excluant les pays qui étaient importants dans le modèle baseline.
+
+```{r, echo = FALSE}
+country <- c(4, 12, 13, 14, 16, 22)
+y0plot1 <- dataprep.out$Y0plot %*% synth.out$solution.w
+d <- as.data.frame(y0plot1)
+
+for (i in country) {
+  dp.out <- dataprep(
+    foo = data,
+    predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+    predictors.op = "mean",
+    time.predictors.prior = 2015.50:2016.50,
+    special.predictors = list_predictor,
+    dependent = "Chomage",
+    unit.variable = "ID_country",
+    unit.names.variable = "LOCATION",
+    time.variable = "TIME",
+    treatment.identifier = 25,
+    controls.identifier = c(1:(i-1),(i+1):24),
+    time.optimize.ssr = 1995.00:2016.50,
+    time.plot = 1995.00:2020.00)
+  s.out <- synth(data.prep.obj = dp.out, method = "BFGS")
+  y0plot <- dp.out$Y0plot %*% s.out$solution.w
+  d[ , ncol(d) + 1] <- y0plot                  # Append new column
+  colnames(d)[ncol(d)] <- paste0("y0plot", i)  # Rename column name
+}
+
+plot(dataprep.out$tag$time.plot, dataprep.out$Y1plot, col = 'red', type = 'l',lwd=3, lty=1, xlab = 'Time', ylab = 'Taux de chomage')
+lines(dataprep.out$tag$time.plot, d$w.weight, col = 'blue', type = 'l',lwd=3, lty=2)
+lines(dataprep.out$tag$time.plot, d$y0plot4, col = 'grey', type = 'l',lwd=2, lty=3)
+lines(dataprep.out$tag$time.plot, d$y0plot12, col = 'grey', type = 'l',lwd=2, lty=3)
+lines(dataprep.out$tag$time.plot, d$y0plot13, col = 'grey', type = 'l',lwd=2, lty=3)
+lines(dataprep.out$tag$time.plot, d$y0plot14, col = 'grey', type = 'l',lwd=2, lty=3)
+lines(dataprep.out$tag$time.plot, d$y0plot16, col = 'grey', type = 'l',lwd=2, lty=3)
+lines(dataprep.out$tag$time.plot, d$y0plot22, col = 'grey', type = 'l',lwd=2, lty=3)
+abline(v = 2016.75, col="black", lwd=3, lty=2)
+legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump", "leave-one-out"),
+       col=c("red", "blue", "black", "grey"), lty=c(1,2,2,3,3,3))
+
+```
+
+Un autre test que l'on peut mener concerne les "space placebo" (avec le package "SCtools"), c'est à dire qu'on regarde ce qu'il se passe si l'on choisit comme unité traité chacun des pays du donor pool au lieu des Etats-Unis. Si l'effet de Trump est significatif, on devrait observer une absence de réaction lorsqu'on place le choc dans un autre pays (ie une moyenne des erreurs post-traitement faible comparé à la celle de la période pré-traitement).
+La p-value obtenue s'interprète comme la probabilité d'obtenir un tel choc en prenant un pays du donor pool au hasard: si elle est faible, c'est qu'il y a bien un "effet Trump", si elle est élevé (le ratio MPSE post/pre des Etats-Unis est fiable).
+On fait aussi le graphique de la différence entre le taux de chômage et sa prédiction par le contrôle synthétique pour chacun des pays.
+
+```{r, echo = FALSE}
+
+tdf <- generate.placebos(dataprep.out,synth.out, Sigf.ipop = 5, strategy = "multiprocess")
+
+mspe.plot(
+  tdf,
+  discard.extreme = FALSE,
+  mspe.limit = 20,
+  plot.hist = FALSE,
+  title = "Ratio MSPE Chomage",
+  xlab = "Post/Pre MSPE ratio",
+  ylab = NULL
+)
+ratio <- mspe.test(tdf)
+ratio$p.val
+
+plot_placebos(
+  tdf = tdf,
+  discard.extreme = FALSE,
+  mspe.limit = 20,
+  xlab = NULL,
+  ylab = NULL,
+  title = "Placebo chomage",
+  alpha.placebos = 1,
+)
+
+```
+
+De la même façon qu'on a réalisé des tests dit "space placebos", on peut réaliser des tests dit "time placebos" en plaçant le choc non pas en 2016Q4 mais à une autre période. Ce test permet de contrôler la qualité du fit: si on reproduit bien les données après un choc placebo en 2011 (par exemple), c'est que le contrôle synthétique est un bon modèle. En outre, on s'attend à ne pas observer d'effet particulier après le faux choc (Trump n'a pas été élu en 2011, il ne devrait donc pas y avoir de réaction).
+
+```{r, echo = FALSE}
+
+list_pred_2011 <- rep(list(list()), 189)
+
+#PIB
+for (i in 1:63) {
+  list_pred_2011[[i]] <- append(list_pred_2011[[i]], list('Chomage', data$TIME[i+1], 'mean'))
+}
+#Emplois
+for (j in 1:63) {
+  list_pred_2011[[j+63]]  <- append(list_pred_2011[[j+63]], list('Emplois', data$TIME[j+1], 'mean'))
+}
+#Actifs
+for (k in 1:63) {
+  list_pred_2011[[k+126]]  <- append(list_pred_2011[[k+126]], list('Actifs', data$TIME[k+1], 'mean'))
+}
+
+dp2011.out <- dataprep(
+  foo = data,
+  predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+  predictors.op = "mean",
+  time.predictors.prior = 2009.50:2010.75,
+  special.predictors = list_pred_2011,
+  dependent = "Chomage",
+  unit.variable = "ID_country",
+  unit.names.variable = "LOCATION",
+  time.variable = "TIME",
+  treatment.identifier = 25,
+  controls.identifier = 1:24,
+  time.optimize.ssr = 1995.00:2010.75,
+  time.plot = 1995.00:2020.00)
+
+start.time <- Sys.time()
+synth2011.out <- synth(data.prep.obj = dp2011.out, method = "BFGS")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+synth2011.tables <- synth.tab(dataprep.res = dp2011.out, synth.res = synth2011.out)
+synth2011.tables$tab.w
+
+path.plot(synth.res = synth2011.out, dataprep.res = dp2011.out, Ylab = "Chomage", Xlab = "year", Legend = c("USA", "synthetic"), Legend.position = "topright")
+abline(v = 2011, col="green", lwd=3, lty=2)
+lines(data$TIME[1:101], graph_bl$sc_cho, col="red", type = "l", lty=1, lwd=4)
+
+
+
+```
+

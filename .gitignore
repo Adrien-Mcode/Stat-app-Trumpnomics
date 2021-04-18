@@ -4,4 +4,8 @@ __init__.py
 .idea/vcs.xml
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/misc.xml
+<<<<<<< HEAD
 .idea/modules.xml
+=======
+.idea/modules.xml
+>>>>>>> 58f01a8d66a4e7a1366c1a63a4b30abb91f43527
