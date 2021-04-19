@@ -67,7 +67,7 @@ for (i in 1:87) {
 ##########   Création des vecteurs du problème d'optimisation    ###########
 dataprep.out <- dataprep(
   foo = tableR,
-  predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+  predictors = c("Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
   predictors.op = "mean",
   time.predictors.prior = 2015.50:2016.50,
   special.predictors = list_predictor,
@@ -106,7 +106,7 @@ synth.tables$tab.v
 gaps <- dataprep.out$Y1plot - (dataprep.out$Y0plot %*% synth.out$solution.w)
 gaps  #Ecart entre le PIB prédit par le contrôle synthétique et le PIB observé des US
 
-#write.csv(synth.out$solution.w,"C:/Users/adxva/OneDrive/Bureau/ENSAE 2A - S1/STAT APP/ponderation.csv")
+#write.csv(synth.out$solution.w,"C:/Users/adxva/OneDrive/Bureau/ENSAE 2A - S1/STAT APP/Stat-app-Trumpnomics/pond_r_bl.csv")
 
 ##########   Graphiques    ###########
 path.plot(synth.res = synth.out, dataprep.res = dataprep.out, Ylab = "Chomage", Xlab = "year", Legend = c("USA", "synthetic"), Legend.position = "topright")
@@ -394,29 +394,29 @@ legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump", "l
 
 ######## TIME PLACEBO
 
-list_pred_2010 <- rep(list(list()), 189)
+list_pred_2011 <- rep(list(list()), 189)
 
 #PIB
 for (i in 1:63) {
-  list_pred_2010[[i]] <- append(list_pred_2010[[i]], list('Chomage', tableR$TIME[i+1], 'mean'))
+  list_pred_2011[[i]] <- append(list_pred_2011[[i]], list('Chomage', tableR$TIME[i+1], 'mean'))
 }
 #Emplois
 for (j in 1:63) {
-  list_pred_2010[[j+63]]  <- append(list_pred_2010[[j+63]], list('Emplois', tableR$TIME[j+1], 'mean'))
+  list_pred_2011[[j+63]]  <- append(list_pred_2011[[j+63]], list('Emplois', tableR$TIME[j+1], 'mean'))
 }
 #Actifs
 for (k in 1:63) {
-  list_pred_2010[[k+126]]  <- append(list_pred_2010[[k+126]], list('Actifs', tableR$TIME[k+1], 'mean'))
+  list_pred_2011[[k+126]]  <- append(list_pred_2011[[k+126]], list('Actifs', tableR$TIME[k+1], 'mean'))
 }
 
 
 ##########   Création des vecteurs du problème d'optimisation    ###########
-dp2010.out <- dataprep(
+dp2011.out <- dataprep(
   foo = tableR,
   predictors = c("PIB", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
   predictors.op = "mean",
-  time.predictors.prior = 2009.50:2010.50,
-  special.predictors = list_pred_2010,
+  time.predictors.prior = 2009.50:2010.75,
+  special.predictors = list_pred_2011,
   dependent = "PIB",
   unit.variable = "ID_country",
   unit.names.variable = "LOCATION",
@@ -431,28 +431,28 @@ dp2010.out <- dataprep(
 ##########   Résolution du problème d'optimisation et résultats    ###########
 
 start.time <- Sys.time()
-synth2010.out <- synth(data.prep.obj = dp2010.out, method = "BFGS")
+synth2011.out <- synth(data.prep.obj = dp2011.out, method = "BFGS")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
 
 #Tableaux des matching et poids
-synth2010.tables <- synth.tab(dataprep.res = dp2010.out, synth.res = synth2010.out)
-synth2010.tables$tab.pred #Tableau des prédictions comparées aux valeurs observées
-synth2010.tables$tab.w    #Tableau des pondérations
-synth2010.tables$tab.v
-gaps2010 <- dp2010.out$Y1plot - (dp2010.out$Y0plot %*% synth2010.out$solution.w)
-gaps2010  #Ecart entre le PIB prédit par le contrôle synthétique et le PIB observé des US
+synth2011.tables <- synth.tab(dataprep.res = dp2011.out, synth.res = synth2011.out)
+synth2011.tables$tab.pred #Tableau des prédictions comparées aux valeurs observées
+synth2011.tables$tab.w    #Tableau des pondérations
+synth2011.tables$tab.v
+gaps2011 <- dp2011.out$Y1plot - (dp2011.out$Y0plot %*% synth2011.out$solution.w)
+gaps2011  #Ecart entre le PIB prédit par le contrôle synthétique et le PIB observé des US
 
 #write.csv(synth.out$solution.w,"C:/Users/adxva/OneDrive/Bureau/ENSAE 2A - S1/STAT APP/ponderation.csv")
 
 ##########   Graphiques    ###########
-path.plot(synth.res = synth2010.out, dataprep.res = dp2010.out, Ylab = "PIB", Xlab = "year", Legend = c("USA", "synthetic"), Legend.position = "topright")
+path.plot(synth.res = synth2011.out, dataprep.res = dp2011.out, Ylab = "PIB", Xlab = "year", Legend = c("USA", "synthetic"), Legend.position = "topright")
 abline(v = 2011, col="blue", lwd=3, lty=2)
 #lines(tableR$TIME[1:101], pred_cho$sc, col="red", type = "l", lty=1, lwd=4)
 
 
-gaps.plot(synth.res = synth2010.out, dataprep.res = dp2010.out, Ylab = "gap in unemployment rate", Main = NA)
+gaps.plot(synth.res = synth2011.out, dataprep.res = dp2011.out, Ylab = "gap in unemployment rate", Main = NA)
 abline(v = 2016.75, col="blue", lwd=3, lty=2)
 
 
