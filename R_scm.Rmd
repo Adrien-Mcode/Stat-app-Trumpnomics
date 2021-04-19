@@ -26,7 +26,7 @@ library(stringr)
 Après avoir importer la base, on observe sa forme puis on met la variable "TIME" au format numérique.
 
 ```{r}
-data <- read.csv("dfR_complete.csv")
+data <- read.csv("dfR_complete_netexp.csv")
 summary(data)
 
 
@@ -67,7 +67,7 @@ On utilise d'abord la fonction dataprep() du package "Synth", qui va préparer l
 ```{r}
 dataprep.out <- dataprep(
   foo = data,
-  predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+  predictors = c("Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
   predictors.op = "mean",
   time.predictors.prior = 2015.50:2016.50,
   special.predictors = list_predictor,
@@ -80,26 +80,29 @@ dataprep.out <- dataprep(
   time.optimize.ssr = 1995.00:2016.50,
   time.plot = 1995.00:2020.00)
 
-dataprep.out$X1
+#dataprep.out$X1
 #dataprep.out$X0  
-dataprep.out$Z1
 #dataprep.out$Z0
+dataprep.out$Z1
 ```
 
 Résolution du problème de minisation à l'aide de la fonction synth() du package "Synth". Elle nous donne en sortie les valeurs prédites par le contrôle synthétique pour chacune des variables de la minimisation, la pondération W du contrôle synthétique et la pondération V des variables.
 
-```{r}
+```{r, include = FALSE}
 start.time <- Sys.time()
 synth.out <- synth(data.prep.obj = dataprep.out, method = "BFGS")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
 
+```
+```{r}
 synth.tables <- synth.tab(dataprep.res = dataprep.out, synth.res = synth.out)
-synth.tables$tab.pred 
-synth.tables$tab.w
-synth.tables$tab.v
 gaps <- dataprep.out$Y1plot - (dataprep.out$Y0plot %*% synth.out$solution.w)
+
+head(synth.tables$tab.pred, 5)
+head(synth.tables$tab.v, 5)
+synth.tables$tab.w
 
 ```
 
@@ -107,7 +110,7 @@ gaps <- dataprep.out$Y1plot - (dataprep.out$Y0plot %*% synth.out$solution.w)
 
 Pour le taux de chômage, le PIB, l'emploi et les actifs, on trace les courbes obtenus pour les Etats-Unis et le contrôle synthétique, l'intervalle de confiance étant obtenu par + ou - l'écart-type de la différence entre les vraies valeurs et celles prédites sur la période pré-traitement.
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
 graph_bl <- read.csv("graph_bl.csv")
 gaps_pib <- data$PIB[1718:1804] - graph_bl$USA_pib[1:87]
 sd_pib <- sd(gaps_pib)
@@ -121,6 +124,10 @@ lines(data$TIME[1:101], pib_m, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
 
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
+
 chom = graph_bl$sc_cho - sd(graph_bl$USA_cho - graph_bl$sc_cho)
 chop = graph_bl$sc_cho + sd(graph_bl$USA_cho - graph_bl$sc_cho)
 
@@ -130,6 +137,10 @@ lines(data$TIME[1:101], chom, col="black",lty=2)
 lines(data$TIME[1:101], chop, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
 
 empm = graph_bl$sc_emp - sd(graph_bl$USA_emp - graph_bl$sc_emp)
 empp = graph_bl$sc_emp + sd(graph_bl$USA_emp - graph_bl$sc_emp)
@@ -141,6 +152,9 @@ lines(data$TIME[1:101], empp, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 0.8, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
 
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
 
 actm = graph_bl$sc_act - sd(graph_bl$USA_act - graph_bl$sc_act)
 actp = graph_bl$sc_act + sd(graph_bl$USA_act - graph_bl$sc_act)
@@ -152,7 +166,6 @@ lines(data$TIME[1:101], actp, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 0.8, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
 
-
 ```
 
 ## Test de robustesse du modèle baseline
@@ -160,7 +173,7 @@ legend(1995, 0.8, legend=c("USA", "contrôle synthétique", "élection de Trump"
 Pour vérifier la solidité de notre modèle, on peut réaliser différents tests. Tout d'abord, le test du "leave-one-out" afin de vérifier que la qualité du contrôle synthétique n'est pas trop dépendant d'un pays du donor pool. Pour cela, on refait tourner le modèle en excluant tour à tour, les différents pays ayant obtenus une pondération importante dans le modèle baseline.
 On voit avec le graphique que la qualité du fit et la prédiction reste proche, même en excluant les pays qui étaient importants dans le modèle baseline.
 
-```{r, echo = FALSE}
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
 country <- c(4, 12, 13, 14, 16, 22)
 y0plot1 <- dataprep.out$Y0plot %*% synth.out$solution.w
 d <- as.data.frame(y0plot1)
@@ -168,7 +181,7 @@ d <- as.data.frame(y0plot1)
 for (i in country) {
   dp.out <- dataprep(
     foo = data,
-    predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+    predictors = c("Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
     predictors.op = "mean",
     time.predictors.prior = 2015.50:2016.50,
     special.predictors = list_predictor,
@@ -204,7 +217,7 @@ Un autre test que l'on peut mener concerne les "space placebo" (avec le package 
 La p-value obtenue s'interprète comme la probabilité d'obtenir un tel choc en prenant un pays du donor pool au hasard: si elle est faible, c'est qu'il y a bien un "effet Trump", si elle est élevé (le ratio MPSE post/pre des Etats-Unis est fiable).
 On fait aussi le graphique de la différence entre le taux de chômage et sa prédiction par le contrôle synthétique pour chacun des pays.
 
-```{r, echo = FALSE}
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
 
 tdf <- generate.placebos(dataprep.out,synth.out, Sigf.ipop = 5, strategy = "multiprocess")
 
@@ -234,7 +247,7 @@ plot_placebos(
 
 De la même façon qu'on a réalisé des tests dit "space placebos", on peut réaliser des tests dit "time placebos" en plaçant le choc non pas en 2016Q4 mais à une autre période. Ce test permet de contrôler la qualité du fit: si on reproduit bien les données après un choc placebo en 2011 (par exemple), c'est que le contrôle synthétique est un bon modèle. En outre, on s'attend à ne pas observer d'effet particulier après le faux choc (Trump n'a pas été élu en 2011, il ne devrait donc pas y avoir de réaction).
 
-```{r, echo = FALSE}
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide', fig.keep = "last"}
 
 list_pred_2011 <- rep(list(list()), 189)
 
@@ -253,7 +266,7 @@ for (k in 1:63) {
 
 dp2011.out <- dataprep(
   foo = data,
-  predictors = c("Chomage", "Conso_share", "Invest_share", 'Export_share', 'Labor_prod'),
+  predictors = c("Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
   predictors.op = "mean",
   time.predictors.prior = 2009.50:2010.75,
   special.predictors = list_pred_2011,
