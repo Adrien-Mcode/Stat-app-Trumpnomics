@@ -265,7 +265,7 @@ def synth(X1, X0):
 
     contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
     bounds = [(0, 1) for i in range(X0.shape[0])]
-    result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
+    result = differential_evolution(loss_V, bounds, maxiter=10, constraints=contrainte, polish=False)
 
     # tps2 = clock()
     # print((tps2 - tps1)/60)
@@ -322,12 +322,12 @@ synth_plot(W_US, 'United-States')
 def in_time_placebo(pays):
     RMSPE_train = []
     RMSPE_test = []
-    date = list(liste_date([1996,2016])[t:t+13] for t in range(92))
-    for t in date:
-        X1, X0 = prep_donnee('United-States',date = t,placebo=True)
+    date = {t:liste_date([1996,2019])[t:t+13] for t in range(84)}
+    for t in date.keys():
+        X1, X0 = prep_donnee(pays,date = date[t],placebo=True)
         W_US, V_US, RMSPE_US = synth(X1, X0)
-        RMSPE_train.append(RMSPE_US/(len(date)-len(t))**1/2)
-        RMSPE_test.append(np.linalg.norm((df_pib.loc[date,pays].values- (df_pib.drop([pays,'Variables'],axis = 1).loc[date].values@W).reshape(16)))/len(t)**(1/2))
+        RMSPE_train.append(RMSPE_US/82**1/2)
+        RMSPE_test.append(np.linalg.norm((df_pib.loc[date[t],pays].values- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].values@W).reshape(13)))/len(date[t])**(1/2))
     return (RMSPE_test,RMSPE_train)
 
 RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
@@ -335,11 +335,8 @@ print(RMSPE_test_US,RMSPE_train_US)
 
 
 def plot_placebo(RMSPE_test,RMSPE_train):
-    df_RMSPE=pd.DataFrame
-    df_RMSPE['RMSPE_test'] = RMSPE_test
-    df_RMSPE['RMSPE_train'] = RMSPE_train
-    df_RMSPE['rap_RMSPE']=df_RMSPE['RMSPE_test']/df_RMSPE['RMSPE_train']
-    plt.hist(df_RMSPE['rap_RMSPE'].values)
+    rapport = list(RMSPE_test[t]/RMSPE_train[t] for t in range(len(RMSPE_test)))
+    plt.hist(rapport)
     return None
 plot_placebo(RMSPE_test_US,RMSPE_train_US)
 
