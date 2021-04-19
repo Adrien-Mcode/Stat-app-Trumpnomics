@@ -253,7 +253,7 @@ plt.close()
 # On peut visualiser l'écart en terme de taux de chômage :
 
 plt.plot(df_chomage['United-States'].values)
-plt.plot(df_chomage.drop('United-States', axis=1).values @ W)
+plt.plot(df_chomage.drop(['United-States','Variables'], axis=1).values @ W)
 plt.legend()
 plt.show()
 plt.close()
