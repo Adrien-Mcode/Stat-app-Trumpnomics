@@ -265,7 +265,7 @@ def synth(X1, X0):
 
     contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
     bounds = [(0, 1) for i in range(X0.shape[0])]
-    result = differential_evolution(loss_V, bounds, maxiter=10, constraints=contrainte, polish=False)
+    result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
 
     # tps2 = clock()
     # print((tps2 - tps1)/60)
