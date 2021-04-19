@@ -1,35 +1,3 @@
-Skip to content
-Search or jump to…
-
-Pull requests
-Issues
-Marketplace
-Explore
- 
-@Jeremstym 
-Adrien-Mcode
-/
-Stat-app-Trumpnomics
-1
-01
-Code
-Issues
-Pull requests
-Actions
-Projects
-Wiki
-Security
-Insights
-Stat-app-Trumpnomics/SCM_propre.py /
-@Adrien-Mcode
-Adrien-Mcode ajout in_time_placebo (3)
-…
-Latest commit 58f01a8 22 hours ago
- History
- 2 contributors
-@Adrien-Mcode@Jeremstym
-347 lines (269 sloc)  13.7 KB
-  
 # -*- coding: utf-8 -*-
 """
 Created on Sat Mar 20 17:45:52 2021
@@ -69,12 +37,18 @@ pays_ocde = {"Germany": 'DEU', "Australia": 'AUS', "Austria": 'AUT', "Belgium": 
              "United Kingdom": 'GBR', "Sweden": 'SWE', "Switzerland": 'CHE', "Slovak Republic": 'SVK',
              "United-States": 'USA'}
 
+inv_map = {v: k for k, v in pays_ocde.items()}
+
 variables = ['Actifs', 'Emplois', 'PIB']
+varsg = ['PIB', 'Emplois', 'Actifs', 'Conso_share', 'Invest_share',
+         'Export_share', 'Labor_prod']
 
 # On importe les données
 data = pd.read_csv(r'Tableaux_csv/df_countries.csv', header=[0, 1])  # On importe les données de la table df_countries
 data.drop(list(d for d in range(0, 20)), inplace=True)  # On supprime les lignes après 1995
 data = data.reset_index().set_index('Pays')  # On met en index "Pays" qui est en fait la date au format str
+
+
 
 # On trie les données pour améliorer les performances et éviter les warnings:
 data = data.sort_index(axis=1)
@@ -104,7 +78,7 @@ df_cho = df_cho.drop(['Country',
 df_chomage = pd.DataFrame()
 for i in sorted(pays_ocde.keys()):
     interm = df_cho.loc[pays_ocde[i]]
-    interm.columns = [[i]]
+    interm.columns = [i]
     df_chomage = pd.concat([df_chomage, interm], axis=1)
 
 # On construit le df qui va nous contenir les séries temporelles pour le contrôle synthétique :
@@ -145,6 +119,7 @@ for var in ['PIB', 'Actifs', 'Emplois']:
         df_ct[df_ct["Variables"] == var] = df_ct[df_ct["Variables"] == var].assign(
             **{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
+
 '''
 #Les auteurs précisent qu'ils prennent comme critère de validation la qualité de la modélisation sur le taux de chomage.
 #On créé donc un df contenant tous les taux de chomage
@@ -155,6 +130,35 @@ df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(d
 df_chomage = df_chomage.dropna() 
 '''
 
+# Voici une nouvelle base de données avec toutes les variables et sans données manquantes
+
+datag = pd.read_csv('dfR_complete.csv')
+datag.drop(columns=['ID_country', 'index'], inplace=True)
+
+df_ctg = pd.DataFrame()
+for pays in pays_ocde.values():
+    df_inter = pd.DataFrame()
+    for var in varsg:
+        concatenator = pd.DataFrame(datag[datag.LOCATION==pays].set_index('TIME')[var])
+        concatenator['Variables'] = var
+        concatenator.rename(columns={var:pays}, inplace=True)
+        df_inter = pd.concat([df_inter, concatenator])
+    df_ctg = pd.concat([df_ctg, df_inter], axis=1)
+    
+df_ctg = df_ctg.T.drop_duplicates(keep='last').T.convert_dtypes()
+df_ctg.rename(columns=inv_map, inplace=True)
+df_ctg.sort_index(axis=1, inplace=True)
+df_ctg.drop('2020-Q1', inplace=True)
+
+df_fit = df_ctg[df_ctg.Variables.isin(['PIB', 'Emplois', 'Actifs'])]
+df_meaner = df_ctg[df_ctg.Variables.isin(['Conso_share', 'Invest_share',
+                                          'Export_share', 'Labor_prod'])]
+df_chomage.set_index(df_ctg[df_ctg.Variables=='PIB'].index, inplace=True)
+df_chomage['Variables'] = 'Chomage'
+
+df_meaner = pd.concat([df_meaner, df_chomage])
+
+
 # ------------ Partie Modélisation ----------------------------------------------
 
 np.set_printoptions(
@@ -163,9 +167,9 @@ np.set_printoptions(
 # On créé le problème d'optimisation cvxpy :
 
 # On prépare le vecteur qui contient les valeurs qui nous intéressent pour les USA :
-X1 = df_ct[['United-States', 'Variables']]
-X1 = X1.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
-X1_mean = df_ct_mean[['United-States', 'Variables']].groupby('Variables').mean().reset_index()
+X1 = df_fit[['United-States', 'Variables']]
+X1 = X1.drop(X1[X1.index>='2017-Q1'].index)
+X1_mean = df_meaner[['United-States', 'Variables']].groupby('Variables').mean()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
 X1 = X1.values
 
@@ -174,15 +178,15 @@ X1 = X1.values
 
 # On prépare le vecteur qui contient les valeurs qui nous intéressent pour les autres pays :
 
-X0 = df_ct.drop('United-States', 1)
-X0 = X0.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
-X0_mean = df_ct_mean.drop('United-States', 1).groupby('Variables').mean().reset_index()
+X0 = df_fit.drop('United-States', 1)
+X0 = X0.drop(X0[X0.index>='2017-Q1'].index)
+X0_mean = df_meaner.drop('United-States', 1).groupby('Variables').mean()
 X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
 X0 = X0.values
 
 # On construit le problème cvxpy
 
-V_opt = cvx.Parameter((154, 154), PSD=True)  # On définit V qui est un vecteur de paramètre
+V_opt = cvx.Parameter((269, 269), PSD=True)  # On définit V qui est un vecteur de paramètre
 x = cvx.Variable((24, 1), nonneg=True)  # On définit un vecteur de variables cvxpy
 # cost = cvx.quad_form((X1 - X0@x),V_opt)                    #On définit la fonction de cout : norme des résidus
 cost = cvx.pnorm(V_opt @ (X1 - X0 @ x))
@@ -204,15 +208,15 @@ def loss_V(V):
 
 # tps1 = clock()
 
-contrainte = LinearConstraint(np.ones((1, 154)), 1, 1)
-bounds = [(0, 1) for i in range(154)]
-result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
+contrainte = LinearConstraint(np.ones((1, 269)), 1, 1)
+bounds = [(0, 1) for i in range(269)]
+result = differential_evolution(loss_V, bounds, maxiter=10, constraints=contrainte, polish=False)
 
 # tps2 = clock()
 # print((tps2 - tps1)/60)
 
 V_opt.value = np.diag(result.x)
-prob.solve()
+prob.solve() # Cette ligne fait redémarrer le noyau indéfiniment...
 W = x.value
 RMSPE = np.linalg.norm((X1 - X0 @ W))
 
@@ -373,16 +377,3 @@ plot_placebo(RMSPE_test_US,RMSPE_train_US)
 
 def in_space_placebo():
     return None
-© 2021 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-Loading complete
