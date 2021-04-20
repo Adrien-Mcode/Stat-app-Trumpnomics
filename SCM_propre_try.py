@@ -124,10 +124,10 @@ for var in ['PIB', 'Actifs', 'Emplois']:
 #Les auteurs précisent qu'ils prennent comme critère de validation la qualité de la modélisation sur le taux de chomage.
 #On créé donc un df contenant tous les taux de chomage
 df_chomage = data.xs('Chomage',axis = 1,level = 1,drop_level = True).drop(list(data.reset_index().loc[d,'Pays'][0] for d in range(88,99)))
-#Note : on a une problème de valeurs manquantes sur ce df, pour l'instant on utilise donc 
-#la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme 
-#faire autre chose avec : 
-df_chomage = df_chomage.dropna() 
+#Note : on a une problème de valeurs manquantes sur ce df, pour l'instant on utilise donc
+#la fonction df.fillna() qui les remplacent par des 0, mais il faudra voir pour à terme
+#faire autre chose avec :
+df_chomage = df_chomage.dropna()
 '''
 
 # Voici une nouvelle base de données avec toutes les variables et sans données manquantes
@@ -144,7 +144,7 @@ for pays in pays_ocde.values():
         concatenator.rename(columns={var:pays}, inplace=True)
         df_inter = pd.concat([df_inter, concatenator])
     df_ctg = pd.concat([df_ctg, df_inter], axis=1)
-    
+
 df_ctg = df_ctg.T.drop_duplicates(keep='last').T.convert_dtypes()
 df_ctg.rename(columns=inv_map, inplace=True)
 df_ctg.sort_index(axis=1, inplace=True)
@@ -156,9 +156,9 @@ df_meaner = df_ctg[df_ctg.Variables.isin(['Conso_share', 'Invest_share',
 df_chomage.set_index(df_ctg[df_ctg.Variables=='PIB'].index, inplace=True)
 df_chomage['Variables'] = 'Chomage'
 
-df_meaner = pd.concat([df_meaner, df_chomage])
+df_meaner = pd.concat([df_meaner, df_chomage]).convert_dtypes()
 
-
+df_meaner
 # ------------ Partie Modélisation ----------------------------------------------
 
 np.set_printoptions(
@@ -171,7 +171,7 @@ X1 = df_fit[['United-States', 'Variables']]
 X1 = X1.drop(X1[X1.index>='2017-Q1'].index)
 X1_mean = df_meaner[['United-States', 'Variables']].groupby('Variables').mean()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
-X1 = X1.values
+X1 = X1.values.astype(float)
 
 # Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
 # correspondre à X0 qui, lui, en aura
@@ -182,7 +182,7 @@ X0 = df_fit.drop('United-States', 1)
 X0 = X0.drop(X0[X0.index>='2017-Q1'].index)
 X0_mean = df_meaner.drop('United-States', 1).groupby('Variables').mean()
 X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
-X0 = X0.values
+X0 = X0.values.astype(float)
 
 # On construit le problème cvxpy
 
@@ -214,11 +214,15 @@ result = differential_evolution(loss_V, bounds, maxiter=10, constraints=contrain
 
 # tps2 = clock()
 # print((tps2 - tps1)/60)
-
 V_opt.value = np.diag(result.x)
+
+cost = cvx.pnorm(V_opt.value @ (X1 - X0 @ x))
+prob = cvx.Problem(cvx.Minimize(cost), constraints)  # On définit le problème
+
 prob.solve() # Cette ligne fait redémarrer le noyau indéfiniment...
 W = x.value
 RMSPE = np.linalg.norm((X1 - X0 @ W))
+
 
 # ------------ Affichage des Résultats ------------------------------------------
 
@@ -226,19 +230,21 @@ RMSPE = np.linalg.norm((X1 - X0 @ W))
 pd.set_option('display.float_format', lambda x: '%.3f' % x)  # Afin de désactiver les notations exponentielles
 
 # Affichage de la table des coefficients :
-country_list = df_ct.dropna().drop(['United-States', 'Variables'], axis=1)
+country_list = df_fit.drop(['United-States', 'Variables'], axis=1)
 coeff = pd.DataFrame(x.value, index=country_list.columns)
 print(coeff)
 
 # Commençons par visualiser l'écart de tendance en PIB
 
-df_pib = df_ct[df_ct["Variables"] == "PIB"]
+df_pib = df_fit[df_fit["Variables"] == "PIB"]
 # df_pib = df_pib.reset_index().drop('index', 1)
 
 sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W
 
-plt.plot(df_pib['United-States'].values)
-plt.plot(sc.values)
+df_pib['United-States']
+
+df_pib['United-States'].plot()
+plt.plot(sc.values, label="Synthetic Control")
 plt.vlines(84, 0, 1, linestyle='--', color='red', label='Election de Trump')
 plt.legend()
 plt.show()
@@ -247,7 +253,7 @@ plt.close()
 # On peut visualiser l'écart en terme de taux de chômage :
 
 plt.plot(df_chomage['United-States'].values)
-plt.plot(df_chomage.drop('United-States', axis=1).values @ W)
+plt.plot(df_chomage.drop(['United-States','Variables'], axis=1).values @ W)
 plt.legend()
 plt.show()
 plt.close()
