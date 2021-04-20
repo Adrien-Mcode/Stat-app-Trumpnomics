@@ -9,7 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Titre
 
 Importation des librairies
 
@@ -219,7 +218,7 @@ On fait aussi le graphique de la différence entre le taux de chômage et sa pr�
 
 ```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
 
-tdf <- generate.placebos(dataprep.out,synth.out, Sigf.ipop = 5, strategy = "multiprocess")
+tdf <- generate.placebos(dataprep.out,synth.out, Sigf.ipop = 2, strategy = "multiprocess")
 
 mspe.plot(
   tdf,
@@ -237,8 +236,8 @@ plot_placebos(
   tdf = tdf,
   discard.extreme = FALSE,
   mspe.limit = 20,
-  xlab = NULL,
-  ylab = NULL,
+  xlab = 'Time',
+  ylab = 'Différence de taux de chômage entre prédicteurs et vraies valeurs pour chacun des pays',
   title = "Placebo chomage",
   alpha.placebos = 1,
 )
@@ -292,7 +291,153 @@ path.plot(synth.res = synth2011.out, dataprep.res = dp2011.out, Ylab = "Chomage"
 abline(v = 2011, col="green", lwd=3, lty=2)
 lines(data$TIME[1:101], graph_bl$sc_cho, col="red", type = "l", lty=1, lwd=4)
 
+```
 
+## Modèle cherchant à évaluer l'impact sur le PIB
+
+On applique toutes les fonctions précédentes en inversant le rôle du chômage et du PIB de façon à ce que le PIB soit la variable centrale d'intérêt.
+
+```{r}
+list_pred_pib <- rep(list(list()), 261)
+
+#Chomage
+for (i in 1:87) {
+  list_pred_pib[[i]] <- append(list_pred_pib[[i]], list('Chomage', data$TIME[i+1], 'mean'))
+}
+#Emplois
+for (j in 1:87) {
+  list_pred_pib[[j+87]]  <- append(list_pred_pib[[j+87]], list('Emplois', data$TIME[j+1], 'mean'))
+}
+#Actifs
+for (k in 1:87) {
+  list_pred_pib[[k+174]]  <- append(list_pred_pib[[k+174]], list('Actifs', data$TIME[k+1], 'mean'))
+}
+```
+
+```{r}
+dp_pib.out <- dataprep(
+  foo = data,
+  predictors = c("PIB", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
+  predictors.op = "mean",
+  time.predictors.prior = 2015.50:2016.50,
+  special.predictors = list_pred_pib,
+  dependent = "PIB",
+  unit.variable = "ID_country",
+  unit.names.variable = "LOCATION",
+  time.variable = "TIME",
+  treatment.identifier = 25,
+  controls.identifier = 1:24,
+  time.optimize.ssr = 1995.00:2016.50,
+  time.plot = 1995.00:2020.00)
+
+#dp_pib.out$X1
+#dp_pib.out$X0  
+#dp_pib.out$Z0
+dp_pib.out$Z1
 
 ```
 
+```{r, include = FALSE}
+start.time <- Sys.time()
+s_pib.out <- synth(data.prep.obj = dp_pib.out, method = "BFGS")
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+```
+```{r}
+s_pib.tables <- synth.tab(dataprep.res = dp_pib.out, synth.res = s_pib.out)
+gaps <- dp_pib.out$Y1plot - (dp_pib.out$Y0plot %*% s_pib.out$solution.w)
+
+head(s_pib.tables$tab.pred, 5)
+head(s_pib.tables$tab.v, 5)
+s_pib.tables$tab.w
+
+```
+
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
+graph_pib <- read.csv("graph_pib.csv")
+gaps_pib2 <- data$PIB[1718:1804] - graph_pib$sc_pib[1:87]
+sd_pib2 <- sd(gaps_pib2)
+pib_p2 <- graph_pib$sc_pib + sd_pib2
+pib_m2 <- graph_pib$sc_pib - sd_pib2
+
+plot(data$TIME[2:101], data$PIB[1718:1817], ylab = 'PIB (en variation depuis 1995)', xlab = 'Time', ylim = c(0,1.2), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_pib$sc_pib, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], pib_p2, col="black",lty=2)
+lines(data$TIME[1:101], pib_m2, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
+
+chom2 = graph_pib$sc_cho - sd(data$Chomage[1718:1804] - graph_pib$sc_cho)
+chop2 = graph_pib$sc_cho + sd(data$Chomage[1718:1804] - graph_pib$sc_cho)
+
+plot(data$TIME[2:101], data$Chomage[1718:1817], ylab = 'Taux de chômage', xlab = 'Time', ylim = c(0,10), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_pib$sc_cho, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], chom2, col="black",lty=2)
+lines(data$TIME[1:101], chop2, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
+
+empm2 = graph_pib$sc_emp - sd(data$Emplois[1718:1804] - graph_pib$sc_emp)
+empp2 = graph_pib$sc_emp + sd(data$Emplois[1718:1804] - graph_pib$sc_emp)
+
+plot(data$TIME[2:101], data$Emplois[1718:1817], ylab = 'Emplois', xlab = 'Time', ylim = c(0,1), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_pib$sc_emp, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], empm2, col="black",lty=2)
+lines(data$TIME[1:101], empp2, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+```
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
+
+actm2 = graph_pib$sc_act - sd(data$Actifs[1718:1804] - graph_pib$sc_act)
+actp2 = graph_pib$sc_act + sd(data$Actifs[1718:1804] - graph_pib$sc_act)
+
+plot(data$TIME[2:101], data$Actifs[1718:1817], ylab = 'Actifs', xlab = 'Time', ylim = c(0,1), col="blue", type = "l", lty = 1, lwd=4)
+lines(data$TIME[1:101], graph_pib$sc_act, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], actm2, col="black",lty=2)
+lines(data$TIME[1:101], actp2, col="black",lty=2)
+abline(v = 2016.75, col="green", lwd=3, lty=2)
+legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
+
+tdf2 <- generate.placebos(dp_pib.out,s_pib.out, Sigf.ipop = 2, strategy = "multiprocess")
+
+mspe.plot(
+  tdf2,
+  discard.extreme = FALSE,
+  mspe.limit = 20,
+  plot.hist = FALSE,
+  title = "Ratio MSPE PIB",
+  xlab = "Post/Pre MSPE ratio",
+  ylab = NULL
+)
+ratio2 <- mspe.test(tdf2)
+ratio2$p.val
+
+plot_placebos(
+  tdf = tdf2,
+  discard.extreme = FALSE,
+  mspe.limit = 20,
+  xlab = 'Time',
+  ylab = 'Différence de PIB entre prédicteurs et vraies valeurs pour chacun des pays',
+  title = "Placebo PIB",
+  alpha.placebos = 1,
+)
+
+```
