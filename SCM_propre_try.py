@@ -43,15 +43,6 @@ variables = ['Actifs', 'Emplois', 'PIB']
 varsg = ['PIB', 'Emplois', 'Actifs', 'Conso_share', 'Invest_share',
          'Export_share', 'Labor_prod']
 
-# On importe les données
-data = pd.read_csv(r'Tableaux_csv/df_countries.csv', header=[0, 1])  # On importe les données de la table df_countries
-data.drop(list(d for d in range(0, 20)), inplace=True)  # On supprime les lignes après 1995
-data = data.reset_index().set_index('Pays')  # On met en index "Pays" qui est en fait la date au format str
-
-
-
-# On trie les données pour améliorer les performances et éviter les warnings:
-data = data.sort_index(axis=1)
 
 # Ajout des données sur le chômage plus complète
 
@@ -80,44 +71,6 @@ for i in sorted(pays_ocde.keys()):
     interm = df_cho.loc[pays_ocde[i]]
     interm.columns = [i]
     df_chomage = pd.concat([df_chomage, interm], axis=1)
-
-# On construit le df qui va nous contenir les séries temporelles pour le contrôle synthétique :
-df_ct = pd.DataFrame()
-for i in variables:
-    interm = data.xs(str(i), axis=1, level=1,
-                     drop_level=True)  # On prend uniquement les colonnes qui se rapporte à une variable avec .xs
-    interm['Variables'] = str(
-        i)  # On rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
-    df_ct = pd.concat([df_ct, interm], axis=0)  # On concatène le df ainsi créé avec les autres
-
-df_ct = df_ct.dropna()
-
-# Nous créons aussi un df pour calculer les moyennes agrégées requises
-data_mean = data.copy()
-
-for pays in pays_ocde.keys():
-    data_mean[pays] = data_mean[pays].assign(Conso=lambda x: x.Conso / x.PIB)
-    data_mean[pays] = data_mean[pays].assign(
-        Emplois=lambda x: np.log(x.PIB / x.Emplois) - np.log(x.PIB.shift() / x.Emplois.shift()))
-    data_mean = data_mean.drop([(pays, 'PIB'), (pays, 'Actifs')], axis=1)
-
-data_mean.rename(columns={'Conso': 'Conso_share'}, inplace=True)
-data_mean.rename(columns={'Emplois': 'Prod_growth'}, inplace=True)
-
-# On le met ensuite sous la forme désirée pour le contrôle synthétique :
-df_ct_mean = pd.DataFrame()
-for i in ['Chomage', 'Conso_share', 'Prod_growth', 'Exports', 'Formation']:
-    interm = data_mean.xs(str(i), axis=1, level=1,
-                          drop_level=True)  # On prend uniquement les colonnes qui se rapporte à une variable avec .xs
-    interm['Variables'] = str(
-        i)  # on rajoute une colonne "variables" qui nous servira plus tard pour construire le problème d'optimisation
-    df_ct_mean = pd.concat([df_ct_mean, interm], axis=0)
-
-# On mesure le PIB,les actifs et les emplois en déviation par rapport à l'année 1995
-for var in ['PIB', 'Actifs', 'Emplois']:
-    for pays in df_ct.drop('Variables', 1).columns:
-        df_ct[df_ct["Variables"] == var] = df_ct[df_ct["Variables"] == var].assign(
-            **{pays: lambda x: (x[pays] - x[pays].iloc[0]) / x[pays].iloc[0]})
 
 
 '''
@@ -158,7 +111,6 @@ df_chomage['Variables'] = 'Chomage'
 
 df_meaner = pd.concat([df_meaner, df_chomage]).convert_dtypes()
 
-df_meaner
 # ------------ Partie Modélisation ----------------------------------------------
 
 np.set_printoptions(
@@ -210,7 +162,7 @@ def loss_V(V):
 
 contrainte = LinearConstraint(np.ones((1, 269)), 1, 1)
 bounds = [(0, 1) for i in range(269)]
-result = differential_evolution(loss_V, bounds, maxiter=10, constraints=contrainte, polish=False)
+result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
 
 # tps2 = clock()
 # print((tps2 - tps1)/60)
@@ -239,21 +191,19 @@ print(coeff)
 df_pib = df_fit[df_fit["Variables"] == "PIB"]
 # df_pib = df_pib.reset_index().drop('index', 1)
 
-sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W
+sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W_US
 
-df_pib['United-States']
-
-df_pib['United-States'].plot()
-plt.plot(sc.values, label="Synthetic Control")
-plt.vlines(84, 0, 1, linestyle='--', color='red', label='Election de Trump')
+(df_pib['United-States']*100).plot()
+plt.plot(sc.values*100, label="Synthetic Control")
+plt.vlines(84, 0, 100, linestyle='--', color='red', label='Election de Trump')
 plt.legend()
 plt.show()
 plt.close()
 
 # On peut visualiser l'écart en terme de taux de chômage :
 
-plt.plot(df_chomage['United-States'].values)
-plt.plot(df_chomage.drop(['United-States','Variables'], axis=1).values @ W)
+df_chomage['United-States'].plot(label="États-Unis")
+plt.plot(df_chomage.drop(['United-States','Variables'], axis=1).values @ W, label="Contrôle Synthétique")
 plt.legend()
 plt.show()
 plt.close()
@@ -265,29 +215,30 @@ def liste_date(date = [2017,2019]):
     liste_d = []
     for i in range(date[0], date[1] + 1):
         for j in range(1, 5):
-            liste_d.append((str(i) + '-Q' + str(j),))
+            liste_d.append(str(i) + '-Q' + str(j))
     return(liste_d)
 
-def prep_donnee(pays,date = [2017,2019],placebo=False):
-    X1 = df_ct[[pays, 'Variables']]
+
+def prep_donnee(pays, date=[2017,2019], placebo=False):
+    X1 = df_fit[[pays, 'Variables']]
     if placebo :
         X1 = X1.drop(date)
     else:
         X1 = X1.drop(liste_date(date))
     #X1 = X1.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
-    X1_mean = df_ct_mean[[pays, 'Variables']].groupby('Variables').mean().reset_index()
+    X1_mean = df_meaner[[pays, 'Variables']].groupby('Variables').mean().reset_index()
     X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
-    X1 = X1.values
+    X1 = X1.values.astype(float)
 
-    X0 = df_ct.drop(pays, 1)
+    X0 = df_fit.drop(pays, 1)
     if placebo :
         X0 = X0.drop(date)
     else:
         X0 = X0.drop(liste_date(date))
     #X0 = X0.drop(list(data.reset_index().loc[d, 'Pays'][0] for d in range(88, 99)))
-    X0_mean = df_ct_mean.drop(pays, 1).groupby('Variables').mean().reset_index()
+    X0_mean = df_meaner.drop(pays, 1).groupby('Variables').mean().reset_index()
     X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
-    X0 = X0.values
+    X0 = X0.values.astype(float)
 
     return (X1, X0)
 
@@ -309,6 +260,8 @@ def synth(X1, X0):
     # print((tps2 - tps1)/60)
 
     V_opt.value = np.diag(result.x)
+    cost = cvx.pnorm(V_opt.value @ (X1 - X0 @ x))
+    prob = cvx.Problem(cvx.Minimize(cost), constraints)
     prob.solve()
     W = x.value
     RMSPE_train = np.linalg.norm((X1 - X0 @ W))
@@ -317,39 +270,41 @@ def synth(X1, X0):
 
 def synth_plot(W, pays):
     sc_pib = df_pib.drop(['Variables', pays], axis=1) @ W
-    sc_chomage = df_chomage.drop(pays, axis=1) @ W
-    fig = plt.figure(0)
-    plt.plot(np.linspace(1996, 2019, df_pib[pays].values.shape[0]),
-             df_pib[pays].values * 100, label='{0}'.format(pays))
-    plt.plot(np.linspace(1996, 2019, df_pib[pays].values.shape[0]), sc_pib.values * 100,
-             label='Synthetic Control')
-    plt.vlines(2017, 0, 100, linestyle='--', color='red', label='Election de Trump')
+    error = (np.array(df_pib[pays].values) - sc_pib.values.astype(float).reshape(100)).std()
 
-    error = (df_pib[pays].values - sc_pib.values.reshape(96)).std()  # /(df_pib[pays].values.shape[0])**(1/2)
+    (df_pib['United-States']*100).plot()
+    plt.plot(sc_pib.values*100, label="Synthetic Control")
+    plt.vlines(84, 0, 100, linestyle='--', color='red', label='Election de Trump')
+
+
     plt.title('Graphique du PIB : {0}'.format(pays))
     plt.xlabel('Années')
     plt.ylabel('Écart du PIB par rapport à 1995 en pourcentage')
-    plt.fill_between(np.linspace(1996, 2019, df_pib[pays].values.shape[0]),
-                     (df_pib[pays].values - 2 * error) * 100, (df_pib[pays].values + 2 * error) * 100,
-                     color='0.75')
+    plt.fill_between(df_pib.index,
+        np.array((sc_pib.values - 2*error).reshape(100) * 100, dtype=float),
+        np.array((sc_pib.values + 2*error).reshape(100) * 100, dtype=float),
+        color='0.75')
     plt.legend()
     plt.show()
-    # plt.close()
+    plt.close()
 
-    fig1 = plt.figure(1)
-    plt.plot(np.linspace(1995, 2019, df_chomage[pays].values.shape[0]), df_chomage[pays].values)
-    plt.plot(np.linspace(1995, 2019, df_chomage[pays].values.shape[0]), sc_chomage.values)
-    error = (df_chomage[pays].values - sc_chomage.values).std()  # / (df_chomage[pays].values.shape[0]) ** (1 / 2)
+
+    sc_chomage = df_chomage.drop([pays,'Variables'], axis=1).values @ W
+    error = (np.array(df_chomage[pays].values) - sc_chomage.astype(float).reshape(100)).std()
+
+    df_chomage[pays].plot(label=pays)
+    plt.plot(df_chomage.drop([pays,'Variables'], axis=1).values @ W, label="Contrôle Synthétique")
+
     plt.title('Graphique du chomage : {0}'.format(pays))
     plt.xlabel('Années')
     plt.ylabel('Chomage en pourcentage')
-    plt.fill_between(np.linspace(1995, 2019, df_chomage[pays].values.shape[0]),
-                     (df_chomage[pays].values - 2 * error).reshape(100),
-                     (df_chomage[pays].values + 2 * error).reshape(100),
-                     color='0.75')
+    plt.fill_between(df_chomage.index,
+        np.array((sc_chomage - 2*error).reshape(100), dtype=float),
+        np.array((sc_chomage + 2*error).reshape(100), dtype=float),
+        color='0.75')
+    plt.legend()
     plt.show()
-    # plt.close()
-
+    plt.close()
 
 X1, X0 = prep_donnee('United-States')
 W_US, V_US, RMSPE_US = synth(X1, X0)
@@ -360,13 +315,15 @@ synth_plot(W_US, 'United-States')
 def in_time_placebo(pays):
     RMSPE_train = []
     RMSPE_test = []
-    date = {t:liste_date([1996,2019])[t:t+13] for t in range(84)}
+    date = {t:liste_date([1995,2019])[t:t+13] for t in range(84)}
+    print(date)
     for t in date.keys():
-        X1, X0 = prep_donnee(pays,date = date[t],placebo=True)
+        X1, X0 = prep_donnee(pays, date=date[t], placebo=True)
         W_US, V_US, RMSPE_US = synth(X1, X0)
         RMSPE_train.append(RMSPE_US/82**1/2)
         RMSPE_test.append(np.linalg.norm((df_pib.loc[date[t],pays].values- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].values@W).reshape(13)))/len(date[t])**(1/2))
-    return (RMSPE_test,RMSPE_train)
+    return (RMSPE_test, RMSPE_train)
+
 
 RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
 print(RMSPE_test_US,RMSPE_train_US)
