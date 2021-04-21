@@ -23,6 +23,7 @@ from scipy.optimize import differential_evolution, LinearConstraint
 # from sklearn.model_selection import train_test_split
 from random import seed
 
+%matplotlib inline
 
 seed(3)
 
@@ -37,12 +38,18 @@ pays_ocde = {"Germany": 'DEU', "Australia": 'AUS', "Austria": 'AUT', "Belgium": 
              "United Kingdom": 'GBR', "Sweden": 'SWE', "Switzerland": 'CHE', "Slovak Republic": 'SVK',
              "United-States": 'USA'}
 
+# Dictionnaire qui inverse clés et valeurs du précédent, pour la table df_ctg
 inv_map = {v: k for k, v in pays_ocde.items()}
 
 variables = ['Actifs', 'Emplois', 'PIB']
-varsg = ['PIB', 'Emplois', 'Actifs', 'Conso_share', 'Invest_share',
-         'Export_share', 'Labor_prod']
 
+# Les variables qu'on utilisera pour la modélisation
+# Conso_share : la part de la consomation en % dans le PIB
+# Invest_share : idem pour l'investissement
+# Export_share : idem pour les exportations
+# Labor_prod : la productivité du travail
+
+varsg = ['PIB', 'Emplois', 'Actifs', 'Conso_share', 'Invest_share','Export_share', 'Labor_prod']
 
 # Ajout des données sur le chômage plus complète
 
@@ -66,6 +73,7 @@ df_cho = df_cho.drop(['Country',
                       'Flags'],
                      axis=1)
 
+# Adaptation de la table pour la modélisation
 df_chomage = pd.DataFrame()
 for i in sorted(pays_ocde.keys()):
     interm = df_cho.loc[pays_ocde[i]]
@@ -88,6 +96,8 @@ df_chomage = df_chomage.dropna()
 datag = pd.read_csv('dfR_complete.csv')
 datag.drop(columns=['ID_country', 'index'], inplace=True)
 
+# Adaptation de la table pour la modélisation
+
 df_ctg = pd.DataFrame()
 for pays in pays_ocde.values():
     df_inter = pd.DataFrame()
@@ -103,6 +113,11 @@ df_ctg.rename(columns=inv_map, inplace=True)
 df_ctg.sort_index(axis=1, inplace=True)
 df_ctg.drop('2020-Q1', inplace=True)
 
+# De la table précédente nous créons deux tables :
+# - df_fit qui donne les séries temporelles pour la modélisation
+# - df_meaner qui donne les valeurs sur lesquelles calculer les moyennes
+# (les 5 valeurs en plus que nous rajoutons pour la régression)
+
 df_fit = df_ctg[df_ctg.Variables.isin(['PIB', 'Emplois', 'Actifs'])]
 df_meaner = df_ctg[df_ctg.Variables.isin(['Conso_share', 'Invest_share',
                                           'Export_share', 'Labor_prod'])]
@@ -113,20 +128,18 @@ df_meaner = pd.concat([df_meaner, df_chomage]).convert_dtypes()
 
 # ------------ Partie Modélisation ----------------------------------------------
 
-np.set_printoptions(
-    suppress=True)  # afin de rendre les sorties plus lisibles, on supprime les notations exponentielles.
+# Afin de rendre les sorties plus lisibles, on supprime les notations exponentielles.
+np.set_printoptions(suppress=True)
 
 # On créé le problème d'optimisation cvxpy :
 
 # On prépare le vecteur qui contient les valeurs qui nous intéressent pour les USA :
+
 X1 = df_fit[['United-States', 'Variables']]
-X1 = X1.drop(X1[X1.index>='2017-Q1'].index)
+X1 = X1.drop(X1[X1.index>='2017-Q1'].index) # Suppression des données post élections
 X1_mean = df_meaner[['United-States', 'Variables']].groupby('Variables').mean()
 X1 = pd.concat([X1, X1_mean]).reset_index().drop(['index', 'Variables'], 1)
-X1 = X1.values.astype(float)
-
-# Notons que X1 n'a aucune valeur manquante, il va falloir en retirer pour
-# correspondre à X0 qui, lui, en aura
+X1 = X1.values.astype(float) # S'assurer que les données sont bien numériques
 
 # On prépare le vecteur qui contient les valeurs qui nous intéressent pour les autres pays :
 
@@ -137,10 +150,10 @@ X0 = pd.concat([X0, X0_mean]).reset_index().drop(['index', 'Variables'], 1)
 X0 = X0.values.astype(float)
 
 # On construit le problème cvxpy
-
 V_opt = cvx.Parameter((269, 269), PSD=True)  # On définit V qui est un vecteur de paramètre
 x = cvx.Variable((24, 1), nonneg=True)  # On définit un vecteur de variables cvxpy
-# cost = cvx.quad_form((X1 - X0@x),V_opt)                    #On définit la fonction de cout : norme des résidus
+
+# On définit la fonction de cout : norme des résidus
 cost = cvx.pnorm(V_opt @ (X1 - X0 @ x))
 constraints = [cvx.sum(x) == 1]  # La contrainte
 prob = cvx.Problem(cvx.Minimize(cost), constraints)  # On définit le problème
@@ -158,20 +171,17 @@ def loss_V(V):
 
 # On définit et résout le problème d'optimisation en V :
 
-# tps1 = clock()
-
 contrainte = LinearConstraint(np.ones((1, 269)), 1, 1)
 bounds = [(0, 1) for i in range(269)]
 result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
 
-# tps2 = clock()
-# print((tps2 - tps1)/60)
 V_opt.value = np.diag(result.x)
 
+# On "réinjecte" la matrice V_opt dans le problème d'optimisation, avec ses valeures optimales
 cost = cvx.pnorm(V_opt.value @ (X1 - X0 @ x))
 prob = cvx.Problem(cvx.Minimize(cost), constraints)  # On définit le problème
 
-prob.solve() # Cette ligne fait redémarrer le noyau indéfiniment...
+prob.solve()
 W = x.value
 RMSPE = np.linalg.norm((X1 - X0 @ W))
 
@@ -187,10 +197,11 @@ coeff = pd.DataFrame(x.value, index=country_list.columns)
 print(coeff)
 
 # Commençons par visualiser l'écart de tendance en PIB
-
 df_pib = df_fit[df_fit["Variables"] == "PIB"]
-# df_pib = df_pib.reset_index().drop('index', 1)
 
+# Cette table va nous servir plus tard pour automatiser la modélisation
+
+# Création du contrôle synthétique comme somme pondérée des autres pays
 sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W_US
 
 (df_pib['United-States']*100).plot()
@@ -211,7 +222,14 @@ plt.close()
 
 # ------------ Partie passage en fonction : -------------------------------------
 
+
 def liste_date(date = [2017,2019]):
+    '''
+    Crée une liste de date au bon format pour le retirer des données
+    Par exemple, on retire toutes les dates postérieures à l'élection pour le
+    contrôle synthétique.
+    On systématise ce retrait pour les time-placebos
+    '''
     liste_d = []
     for i in range(date[0], date[1] + 1):
         for j in range(1, 5):
@@ -220,6 +238,10 @@ def liste_date(date = [2017,2019]):
 
 
 def prep_donnee(pays, date=[2017,2019], placebo=False):
+    '''
+    Une fonction qui exécute automatiquement le preprocessing pour les données
+    avant modélisation du contrôle synthétique.
+    '''
     X1 = df_fit[[pays, 'Variables']]
     if placebo :
         X1 = X1.drop(date)
@@ -244,6 +266,10 @@ def prep_donnee(pays, date=[2017,2019], placebo=False):
 
 
 def synth(X1, X0):
+    """
+    Fonction qui automatise le contrôle synthétque sur un pays donnée.
+    Il faut que les données soient pré-traitées ! cf. prep_donnee()
+    """
     V_opt = cvx.Parameter((X0.shape[0], X0.shape[0]), PSD=True)  # On définit V qui est un vecteur de paramètre
     x = cvx.Variable((X0.shape[1], 1), nonneg=True)  # On définit un vecteur de variables cvxpy
     cost = cvx.pnorm(V_opt @ (X1 - X0 @ x))  # On définit la fonction de cout : norme des résidus
@@ -269,8 +295,19 @@ def synth(X1, X0):
 
 
 def synth_plot(W, pays):
+    """
+    Une fois obtenue le vecteur W de pondération, on peut afficher les courbes
+    du contrôle synthétique sur le PIB et le chômage.
+    Affichage des intervalles de confiance en zone grisée.
+    L'intervalle de confiance correspond à + et - l'écart type autour de la
+    courbe du contrôle synthétique.
+    L'écart type est celui de la série différenciée entre le contrôle synthétique
+    et la vraie valeur de la série temporelle (ex: PIB_USA - PIB_SC).
+    """
     sc_pib = df_pib.drop(['Variables', pays], axis=1) @ W
     error = (np.array(df_pib[pays].values) - sc_pib.values.astype(float).reshape(100)).std()
+
+    fig1 = plt.figure(0)
 
     (df_pib['United-States']*100).plot()
     plt.plot(sc_pib.values*100, label="Synthetic Control")
@@ -292,6 +329,8 @@ def synth_plot(W, pays):
     sc_chomage = df_chomage.drop([pays,'Variables'], axis=1).values @ W
     error = (np.array(df_chomage[pays].values) - sc_chomage.astype(float).reshape(100)).std()
 
+    fig2 = plt.figure(1)
+
     df_chomage[pays].plot(label=pays)
     plt.plot(df_chomage.drop([pays,'Variables'], axis=1).values @ W, label="Contrôle Synthétique")
 
@@ -306,9 +345,12 @@ def synth_plot(W, pays):
     plt.show()
     plt.close()
 
+    return(fig1, fig2)
+
+# On vérifie que les fonctions marchent bien.
 X1, X0 = prep_donnee('United-States')
 W_US, V_US, RMSPE_US = synth(X1, X0)
-synth_plot(W_US, 'United-States')
+fig_pib, fig_cho = synth_plot(W_US, 'United-States')
 
 
 # ------------Partie construction d'un placebo ---------------------------------------------
