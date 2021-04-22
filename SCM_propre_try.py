@@ -23,7 +23,7 @@ from scipy.optimize import differential_evolution, LinearConstraint
 # from sklearn.model_selection import train_test_split
 from random import seed
 
-%matplotlib inline
+#%matplotlib inline
 
 seed(3)
 
@@ -173,7 +173,7 @@ def loss_V(V):
 
 contrainte = LinearConstraint(np.ones((1, 269)), 1, 1)
 bounds = [(0, 1) for i in range(269)]
-result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
+result = differential_evolution(loss_V, bounds, maxiter=1, constraints=contrainte, polish=False)
 
 V_opt.value = np.diag(result.x)
 
@@ -202,7 +202,7 @@ df_pib = df_fit[df_fit["Variables"] == "PIB"]
 # Cette table va nous servir plus tard pour automatiser la modélisation
 
 # Création du contrôle synthétique comme somme pondérée des autres pays
-sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W_US
+sc = df_pib.drop(['Variables', 'United-States'], axis=1) @ W
 
 (df_pib['United-States']*100).plot()
 plt.plot(sc.values*100, label="Synthetic Control")
@@ -280,7 +280,7 @@ def synth(X1, X0):
 
     contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
     bounds = [(0, 1) for i in range(X0.shape[0])]
-    result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
+    result = differential_evolution(loss_V, bounds, maxiter=1, constraints=contrainte, polish=False)
 
     # tps2 = clock()
     # print((tps2 - tps1)/60)
@@ -358,24 +358,40 @@ def in_time_placebo(pays):
     RMSPE_train = []
     RMSPE_test = []
     date = {t:liste_date([1995,2019])[t:t+13] for t in range(84)}
-    print(date)
     for t in date.keys():
         X1, X0 = prep_donnee(pays, date=date[t], placebo=True)
         W_US, V_US, RMSPE_US = synth(X1, X0)
         RMSPE_train.append(RMSPE_US/82**1/2)
-        RMSPE_test.append(np.linalg.norm((df_pib.loc[date[t],pays].values- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].values@W).reshape(13)))/len(date[t])**(1/2))
+        RMSPE_test.append(np.linalg.norm((df_pib.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/len(date[t])**(1/2))
     return (RMSPE_test, RMSPE_train)
 
-
-RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
-print(RMSPE_test_US,RMSPE_train_US)
-
-
-def plot_placebo(RMSPE_test,RMSPE_train):
-    rapport = list(RMSPE_test[t]/RMSPE_train[t] for t in range(len(RMSPE_test)))
-    plt.hist(rapport)
-    return None
-plot_placebo(RMSPE_test_US,RMSPE_train_US)
-
 def in_space_placebo():
-    return None
+    RMSPE_train = []
+    RMSPE_test = []
+    for pays in pays_ocde.keys():
+        date = liste_date()
+        X1, X0 = prep_donnee(pays)
+        W, V, RMSPE_t = synth(X1, X0)
+        RMSPE_train.append(RMSPE_t)
+        RMSPE_test.append(np.linalg.norm((df_pib.loc[date,pays].to_numpy(dtype = 'float').reshape(12,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date].to_numpy(dtype = 'float')@W).reshape(12,1)))/len(date)**(1/2))
+    return RMSPE_test,RMSPE_train
+
+def plot_placebo(RMSPE_test,RMSPE_train,count_fig):
+    rapport = list(RMSPE_test[t]/RMSPE_train[t] for t in range(len(RMSPE_test)))
+    fig = plt.figure(count_fig)
+    plt.hist(rapport)
+    plt.title('Distribution des rapports d\'erreurs pré et post fit')
+    plt.xlabel('Rapport')
+    plt.ylabel('Nombre')
+    return fig
+
+count_fig=0
+RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
+fig1 = plot_placebo(RMSPE_test_US,RMSPE_train_US,0)
+plt.show()
+
+
+RMSPE_test,RMSPE_train = in_space_placebo()
+fig2 = plot_placebo(RMSPE_test,RMSPE_train,1)
+plt.show()
+
