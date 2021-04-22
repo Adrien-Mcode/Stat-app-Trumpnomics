@@ -89,7 +89,7 @@ Résolution du problème de minisation à l'aide de la fonction synth() du packa
 
 ```{r, include = FALSE}
 start.time <- Sys.time()
-synth.out <- synth(data.prep.obj = dataprep.out, method = "BFGS")
+synth.out <- synth(data.prep.obj = dataprep.out, method = "All")
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
@@ -244,6 +244,12 @@ plot_placebos(
 
 ```
 
+```{r}
+
+ratio$p.val
+
+```
+
 De la même façon qu'on a réalisé des tests dit "space placebos", on peut réaliser des tests dit "time placebos" en plaçant le choc non pas en 2016Q4 mais à une autre période. Ce test permet de contrôler la qualité du fit: si on reproduit bien les données après un choc placebo en 2011 (par exemple), c'est que le contrôle synthétique est un bon modèle. En outre, on s'attend à ne pas observer d'effet particulier après le faux choc (Trump n'a pas été élu en 2011, il ne devrait donc pas y avoir de réaction).
 
 ```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide', fig.keep = "last"}
@@ -363,8 +369,8 @@ sd_pib2 <- sd(gaps_pib2)
 pib_p2 <- graph_pib$sc_pib + sd_pib2
 pib_m2 <- graph_pib$sc_pib - sd_pib2
 
-plot(data$TIME[2:101], data$PIB[1718:1817], ylab = 'PIB (en variation depuis 1995)', xlab = 'Time', ylim = c(0,1.2), col="blue", type = "l", lty = 1, lwd=4)
-lines(data$TIME[1:101], graph_pib$sc_pib, col="red", type = "l", lty=1, lwd=4)
+plot(data$TIME[2:101], data$PIB[1718:1817], ylab = 'PIB (en variation depuis 1995)', xlab = 'Time', ylim = c(0,1.2), col="blue", type = "l", lty = 1, lwd=2)
+lines(data$TIME[1:101], graph_pib$sc_pib, col="red", type = "l", lty=1, lwd=2)
 lines(data$TIME[1:101], pib_p2, col="black",lty=2)
 lines(data$TIME[1:101], pib_m2, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
@@ -428,7 +434,6 @@ mspe.plot(
   ylab = NULL
 )
 ratio2 <- mspe.test(tdf2)
-ratio2$p.val
 
 plot_placebos(
   tdf = tdf2,
@@ -439,5 +444,112 @@ plot_placebos(
   title = "Placebo PIB",
   alpha.placebos = 1,
 )
+
+```
+
+```{r}
+
+ratio2$p.val
+
+```
+
+##Modèle sans série temporelle
+
+Modèle n'utilisant que la moyenne de chacune des variables sur l'ensemble de la période et prenant comme outcome le taux de chômage.
+
+```{r, warning=FALSE,message=FALSE,error=FALSE}
+
+dp_moy.out <- dataprep(
+  foo = data,
+  predictors = c("PIB", "Emplois", "Actifs", "Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
+  predictors.op = "mean",
+  time.predictors.prior = 1995.00:2016.50,
+  special.predictors = NULL,
+  dependent = "Chomage",
+  unit.variable = "ID_country",
+  unit.names.variable = "LOCATION",
+  time.variable = "TIME",
+  treatment.identifier = 25,
+  controls.identifier = 1:24,
+  time.optimize.ssr = 1995.00:2016.50,
+  time.plot = 1995.00:2020.00)
+```
+
+
+```{r, include = FALSE}
+s_moy.out <- synth(data.prep.obj = dp_moy.out, method = "BFGS")
+```
+```{r}
+s_moy.tables <- synth.tab(dataprep.res = dp_moy.out, synth.res = s_moy.out)
+gaps_moy <- dp_moy.out$Y1plot - (dp_moy.out$Y0plot %*% s_moy.out$solution.w)
+
+s_moy.tables$tab.pred
+s_moy.tables$tab.v
+s_moy.tables$tab.w
+
+```
+
+Modèle n'utilisant que la moyenne de chacune des variables sur l'ensemble de la période et prenant comme outcome le PIB.
+
+```{r, warning=FALSE,message=FALSE,error=FALSE}
+
+path.plot(synth.res = s_moy.out, dataprep.res = dp_moy.out, Ylab = "Chomage", Xlab = "year", tr.intake = 2016.75, Legend = c("USA", "synthetic"), Legend.position = "topleft")
+
+
+gaps.plot(synth.res = s_moy.out, dataprep.res = dp_moy.out, Ylab = "gap in unemployment rate", tr.intake = 2016.75, Main = NA)
+abline(h = sd(gaps_moy[1:22]), col="black", lwd=1, lty=2)
+abline(h = -sd(gaps_moy[1:22]), col="black", lwd=1, lty=2)
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE}
+
+dp_moy2.out <- dataprep(
+  foo = data,
+  predictors = c("PIB", "Emplois", "Actifs", "Chomage", "Conso_share", "Invest_share", 'NExport_share', 'Labor_prod'),
+  predictors.op = "mean",
+  time.predictors.prior = 1995.00:2016.50,
+  special.predictors = NULL,
+  dependent = "PIB",
+  unit.variable = "ID_country",
+  unit.names.variable = "LOCATION",
+  time.variable = "TIME",
+  treatment.identifier = 25,
+  controls.identifier = 1:24,
+  time.optimize.ssr = 1995.00:2016.50,
+  time.plot = 1995.00:2020.00)
+```
+
+
+```{r, include = FALSE}
+s_moy2.out <- synth(data.prep.obj = dp_moy2.out, method = "BFGS")
+```
+```{r}
+s_moy2.tables <- synth.tab(dataprep.res = dp_moy2.out, synth.res = s_moy2.out)
+gaps_moy2 <- dp_moy2.out$Y1plot - (dp_moy2.out$Y0plot %*% s_moy2.out$solution.w)
+
+s_moy2.tables$tab.pred
+s_moy2.tables$tab.v
+s_moy2.tables$tab.w
+
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE}
+
+path.plot(synth.res = s_moy2.out, dataprep.res = dp_moy2.out, Ylab = "PIB", Xlab = "year", tr.intake = 2016.75, Legend = c("USA", "synthetic"), Legend.position = "topleft")
+
+
+gaps.plot(synth.res = s_moy2.out, dataprep.res = dp_moy2.out, Ylab = "gap in PIB", tr.intake = 2016.75, Main = NA)
+abline(h = sd(gaps_moy2[1:22]), col="black", lwd=1, lty=2)
+abline(h = -sd(gaps_moy2[1:22]), col="black", lwd=1, lty=2)
+
+```
+
+Comparaison des MSPE sur la période d'entraînement des différents modèles (issus du calcul de V et W): les modèles prenant le PIB comme outcome ont un meilleur MSPE (probablement parce que le PIB suit une tendance claire, contrairement au taux de chômage) mais on voit que aussi que l'ajout des séries temporelles permet d'améliorer le fit par rapport aux modèles n'utilisant que des moyennes.
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE}
+print(paste0("Loss V and W (modèle baseline): ", round(synth.out$loss.v, digits=4)))
+print(paste0("Loss V and W (modèle PIB): ", round(s_pib.out$loss.v, digits=4)))
+print(paste0("Loss V and W (modèle moyenne chômage): ", round(s_moy.out$loss.v, digits=4)))
+print(paste0("Loss V and W (modèle moyenne PIB): ", round(s_moy2.out$loss.v, digits=4)))
 
 ```
