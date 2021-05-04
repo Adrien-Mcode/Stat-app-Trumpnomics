@@ -18,6 +18,7 @@ Created on Wed Mar 10 22:51:14 2021
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import cvxpy as cvx
 from scipy.optimize import differential_evolution, LinearConstraint
 # from sklearn.model_selection import train_test_split
@@ -280,7 +281,7 @@ def synth(X1, X0):
 
     contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
     bounds = [(0, 1) for i in range(X0.shape[0])]
-    result = differential_evolution(loss_V, bounds, maxiter=1, constraints=contrainte, polish=False)
+    result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
 
     # tps2 = clock()
     # print((tps2 - tps1)/60)
@@ -333,6 +334,7 @@ def synth_plot(W, pays):
 
     df_chomage[pays].plot(label=pays)
     plt.plot(df_chomage.drop([pays,'Variables'], axis=1).values @ W, label="Contrôle Synthétique")
+    plt.vlines(84, 0, 100, linestyle='--', color='red', label='Election de Trump')
 
     plt.title('Graphique du chomage : {0}'.format(pays))
     plt.xlabel('Années')
@@ -355,43 +357,62 @@ fig_pib, fig_cho = synth_plot(W_US, 'United-States')
 
 # ------------Partie construction d'un placebo ---------------------------------------------
 def in_time_placebo(pays):
-    RMSPE_train = []
-    RMSPE_test = []
-    date = {t:liste_date([1995,2019])[t:t+13] for t in range(84)}
+    result_time = {}
+    date = {t:liste_date([1995,2019])[t:t+13] for t in range(85)}
     for t in date.keys():
         X1, X0 = prep_donnee(pays, date=date[t], placebo=True)
         W_US, V_US, RMSPE_US = synth(X1, X0)
-        RMSPE_train.append(RMSPE_US/82**1/2)
-        RMSPE_test.append(np.linalg.norm((df_pib.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/len(date[t])**(1/2))
-    return (RMSPE_test, RMSPE_train)
+        RMSPE_test=np.linalg.norm((df_pib.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/len(date[t])**(1/2)
+        RMSPE_cho_test = np.linalg.norm((df_chomage.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_chomage.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/(len(date[t])**(1/2))
+        RMSPE_cho_train = np.linalg.norm((df_chomage.drop(date[t],axis = 0)[pays].to_numpy(dtype = 'float') - df_chomage.drop([pays,'Variables'],axis = 1).loc[df_chomage.index.difference(date[t])].to_numpy(dtype = 'float') @ W))/((len(df_chomage.index)-len(date[t]))**(1/2))
+        result_time[str(date[t][0]) + ' à '+ str(date[t][12])]= [RMSPE_US/82**1/2,RMSPE_test,RMSPE_cho_train,RMSPE_cho_test]
+    return result_time
 
 def in_space_placebo():
-    RMSPE_train = []
-    RMSPE_test = []
+    result_pays = {}
+    W_pays = pd.DataFrame()
     for pays in pays_ocde.keys():
         date = liste_date()
         X1, X0 = prep_donnee(pays)
-        W, V, RMSPE_t = synth(X1, X0)
-        RMSPE_train.append(RMSPE_t)
-        RMSPE_test.append(np.linalg.norm((df_pib.loc[date,pays].to_numpy(dtype = 'float').reshape(12,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date].to_numpy(dtype = 'float')@W).reshape(12,1)))/len(date)**(1/2))
-    return RMSPE_test,RMSPE_train
+        W, V, RMSPE_pre = synth(X1, X0)
+        W_pays[pays]=W.tolist()
+        RMSPE_post = np.linalg.norm((df_pib.loc[date, pays].to_numpy(dtype='float').reshape(12, 1) - (df_pib.drop([pays, 'Variables'], axis=1).loc[date].to_numpy(dtype='float') @ W).reshape(12,1))) / len(date) ** (1 / 2)
+        RMSPE_cho_test = np.linalg.norm((df_chomage.loc[date,pays].to_numpy(dtype = 'float').reshape(12,1)- (df_chomage.drop([pays,'Variables'],axis = 1).loc[date].to_numpy(dtype = 'float')@W).reshape(12,1)))/(len(date)**(1/2))
+        RMSPE_cho_train = np.linalg.norm((df_chomage.drop(date,axis = 0)[pays].to_numpy(dtype = 'float') - df_chomage.drop([pays,'Variables'],axis = 1).loc[df_chomage.index.difference(date)].to_numpy(dtype = 'float') @ W))/((len(df_chomage.index)-len(date))**(1/2))
+        result_pays[pays] = (RMSPE_pre,RMSPE_post,RMSPE_cho_train,RMSPE_cho_test)
+    return result_pays,W_pays
 
-def plot_placebo(RMSPE_test,RMSPE_train,count_fig):
-    rapport = list(RMSPE_test[t]/RMSPE_train[t] for t in range(len(RMSPE_test)))
+def plot_placebo(result,count_fig,relief,numerous = False):
+    df_rapport = pd.DataFrame(result,index = ['RMSPE_pre','RMSPE_post','RMSPE_cho_train','RMSPE_cho_test']).T
+    df_rapport['Rapport_RMSPE_PIB'] = df_rapport['RMSPE_post']/df_rapport['RMSPE_pre']
+    df_rapport.sort_values('Rapport_RMSPE_PIB',inplace=True)
+    df_rapport['classement'] = list(t for t in range(len(df_rapport.index)))
     fig = plt.figure(count_fig)
-    plt.hist(rapport)
-    plt.title('Distribution des rapports d\'erreurs pré et post fit')
-    plt.xlabel('Rapport')
-    plt.ylabel('Nombre')
+    ax = fig.add_subplot(111)
+    if numerous:
+        ax.yaxis.set_major_locator(ticker.FixedLocator([df_rapport.loc[relief,'classement']]))
+        ax.yaxis.set_minor_locator(ticker.FixedLocator(list(df_rapport['classement'])))
+        ax.yaxis.set_ticklabels([relief])
+    else :
+        ax.yaxis.set_major_locator(ticker.FixedLocator(list(df_rapport['classement'])))
+        ax.yaxis.set_ticklabels(df_rapport.index)
+
+    plt.scatter(df_rapport['Rapport_RMSPE_PIB'].drop(relief).to_numpy(dtype='float'),
+                df_rapport['classement'].drop(relief).to_numpy(dtype='float'))
+    plt.scatter(df_rapport.loc[relief,'Rapport_RMSPE_PIB'],df_rapport.loc[relief,'classement'],marker='+')
+
+    plt.xlabel('Rapport des RMSPE post et pré intervention')
+
     return fig
 
-count_fig=0
-RMSPE_test_US,RMSPE_train_US = in_time_placebo('United-States')
-fig1 = plot_placebo(RMSPE_test_US,RMSPE_train_US,0)
-plt.show()
+result_in_time= in_time_placebo('United-States')
+fig1 = plot_placebo(result_in_time,0,'2016-Q1 à 2019-Q1',numerous = True)
+plt.savefig('placebo_in_time',bbox_inches='tight')
+plt.close()
 
 
-RMSPE_test,RMSPE_train = in_space_placebo()
-fig2 = plot_placebo(RMSPE_test,RMSPE_train,1)
-plt.show()
-
+result_in_space,W_pays = in_space_placebo()
+fig2 = plot_placebo(result_in_space,1,'United-States')
+plt.savefig('placebo_in_space',bbox_inches='tight')
+plt.close()
+W_pays.to_csv('W_pays.csv')
