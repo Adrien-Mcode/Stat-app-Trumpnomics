@@ -116,12 +116,15 @@ sd_pib <- sd(gaps_pib)
 pib_p <- graph_bl$USA_pib + sd_pib
 pib_m <- graph_bl$USA_pib - sd_pib
 
+
 plot(data$TIME[2:101], data$PIB[1718:1817], ylab = 'PIB (en variation depuis 1995)', xlab = 'Time', ylim = c(0,1.2), col="blue", type = "l", lty = 1, lwd=4)
 lines(data$TIME[1:101], graph_bl$USA_pib, col="red", type = "l", lty=1, lwd=4)
 lines(data$TIME[1:101], pib_p, col="black",lty=2)
 lines(data$TIME[1:101], pib_m, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 1, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
+
+
 
 ```
 
@@ -137,6 +140,7 @@ lines(data$TIME[1:101], chop, col="black",lty=2)
 abline(v = 2016.75, col="green", lwd=3, lty=2)
 legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump"), col=c("blue", "red", "green"), lty=1)
 
+dev.off()
 ```
 
 ```{r, echo = FALSE, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
@@ -197,6 +201,9 @@ for (i in country) {
   d[ , ncol(d) + 1] <- y0plot                  # Append new column
   colnames(d)[ncol(d)] <- paste0("y0plot", i)  # Rename column name
 }
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='last'}
 
 plot(dataprep.out$tag$time.plot, dataprep.out$Y1plot, col = 'red', type = 'l',lwd=3, lty=1, xlab = 'Time', ylab = 'Taux de chomage')
 lines(dataprep.out$tag$time.plot, d$w.weight, col = 'blue', type = 'l',lwd=3, lty=2)
@@ -210,6 +217,7 @@ abline(v = 2016.75, col="black", lwd=3, lty=2)
 legend(1995, 10, legend=c("USA", "contrôle synthétique", "élection de Trump", "leave-one-out"),
        col=c("red", "blue", "black", "grey"), lty=c(1,2,2,3,3,3))
 
+dev.off()
 ```
 
 Un autre test que l'on peut mener concerne les "space placebo" (avec le package "SCtools"), c'est à dire qu'on regarde ce qu'il se passe si l'on choisit comme unité traité chacun des pays du donor pool au lieu des Etats-Unis. Si l'effet de Trump est significatif, on devrait observer une absence de réaction lorsqu'on place le choc dans un autre pays (ie une moyenne des erreurs post-traitement faible comparé à la celle de la période pré-traitement).
@@ -219,6 +227,9 @@ On fait aussi le graphique de la différence entre le taux de chômage et sa pr�
 ```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
 
 tdf <- generate.placebos(dataprep.out,synth.out, Sigf.ipop = 2, strategy = "multiprocess")
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
 
 mspe.plot(
   tdf,
@@ -229,9 +240,16 @@ mspe.plot(
   xlab = "Post/Pre MSPE ratio",
   ylab = NULL
 )
+
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
+
 ratio <- mspe.test(tdf)
 ratio$p.val
+```
 
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all'}
 plot_placebos(
   tdf = tdf,
   discard.extreme = FALSE,
@@ -244,11 +262,6 @@ plot_placebos(
 
 ```
 
-```{r}
-
-ratio$p.val
-
-```
 
 De la même façon qu'on a réalisé des tests dit "space placebos", on peut réaliser des tests dit "time placebos" en plaçant le choc non pas en 2016Q4 mais à une autre période. Ce test permet de contrôler la qualité du fit: si on reproduit bien les données après un choc placebo en 2011 (par exemple), c'est que le contrôle synthétique est un bon modèle. En outre, on s'attend à ne pas observer d'effet particulier après le faux choc (Trump n'a pas été élu en 2011, il ne devrait donc pas y avoir de réaction).
 
@@ -290,13 +303,22 @@ end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken
 
+
 synth2011.tables <- synth.tab(dataprep.res = dp2011.out, synth.res = synth2011.out)
 synth2011.tables$tab.w
+```
+
+```{r, warning=FALSE,message=FALSE,error=FALSE, results='hide', fig.keep = "last"}
+
+png(file="C:/Users/adxva/OneDrive/Bureau/ENSAE 2A - S1/STAT APP/time_placebo_cho.png", width=600, height=350)
 
 path.plot(synth.res = synth2011.out, dataprep.res = dp2011.out, Ylab = "Chomage", Xlab = "year", Legend = c("USA", "synthetic"), Legend.position = "topright")
 abline(v = 2011, col="green", lwd=3, lty=2)
 lines(data$TIME[1:101], graph_bl$sc_cho, col="red", type = "l", lty=1, lwd=4)
+lines(data$TIME[1:101], chom, col="grey",lty=2)
+lines(data$TIME[1:101], chop, col="grey",lty=2)
 
+dev.off()
 ```
 
 ## Modèle cherchant à évaluer l'impact sur le PIB
