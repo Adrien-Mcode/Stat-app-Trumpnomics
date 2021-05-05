@@ -161,11 +161,11 @@ prob = cvx.Problem(cvx.Minimize(cost), constraints)  # On définit le problème
 
 
 # On définit une fonction qui renvoit le "cout" pour l'optimisation de la fonction V :
-def loss_V(V):
+def loss_V(V,pays=('United-states')):
     V_opt.value = np.diag(np.abs(V) ** 1 / 2)
     prob.solve(warm_start=True)
     return (np.linalg.norm(
-        (df_chomage['United-States'].values - df_chomage.drop('United-States', axis=1).values @ x.value)))
+        (df_chomage[pays[0]].values - df_chomage.drop(pays[0], axis=1).values @ x.value)))
 
 
 # Note de performance : utiliser la fonction pnorm plutot que quadform est plus avantageux (de peu, on gagne environ 8 minutes sur le temps d'éxecution total)
@@ -266,7 +266,7 @@ def prep_donnee(pays, date=[2017,2019], placebo=False):
     return (X1, X0)
 
 
-def synth(X1, X0):
+def synth(X1, X0,pays='United-States'):
     """
     Fonction qui automatise le contrôle synthétque sur un pays donnée.
     Il faut que les données soient pré-traitées ! cf. prep_donnee()
@@ -281,7 +281,7 @@ def synth(X1, X0):
 
     contrainte = LinearConstraint(np.ones((1,X0.shape[0])), 1, 1)
     bounds = [(0, 1) for i in range(X0.shape[0])]
-    result = differential_evolution(loss_V, bounds, maxiter=100, constraints=contrainte, polish=False)
+    result = differential_evolution(loss_V,bounds,args=(pays),maxiter=10, constraints=contrainte, polish=False)
 
     # tps2 = clock()
     # print((tps2 - tps1)/60)
@@ -295,7 +295,7 @@ def synth(X1, X0):
     return W, V_opt.value, RMSPE_train
 
 
-def synth_plot(W, pays):
+def synth_plot(W, pays='United-States'):
     """
     Une fois obtenue le vecteur W de pondération, on peut afficher les courbes
     du contrôle synthétique sur le PIB et le chômage.
@@ -310,7 +310,7 @@ def synth_plot(W, pays):
 
     fig1 = plt.figure(0)
 
-    (df_pib['United-States']*100).plot()
+    (df_pib[pays]*100).plot()
     plt.plot(sc_pib.values*100, label="Synthetic Control")
     plt.vlines(84, 0, 100, linestyle='--', color='red', label='Election de Trump')
 
@@ -324,7 +324,7 @@ def synth_plot(W, pays):
         color='0.75')
     plt.legend()
     plt.show()
-    plt.close()
+    #plt.close()
 
 
     sc_chomage = df_chomage.drop([pays,'Variables'], axis=1).values @ W
@@ -345,7 +345,7 @@ def synth_plot(W, pays):
         color='0.75')
     plt.legend()
     plt.show()
-    plt.close()
+    #plt.close()
 
     return(fig1, fig2)
 
@@ -361,7 +361,7 @@ def in_time_placebo(pays):
     date = {t:liste_date([1995,2019])[t:t+13] for t in range(85)}
     for t in date.keys():
         X1, X0 = prep_donnee(pays, date=date[t], placebo=True)
-        W_US, V_US, RMSPE_US = synth(X1, X0)
+        W_US, V_US, RMSPE_US = synth(X1, X0,pays)
         RMSPE_test=np.linalg.norm((df_pib.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_pib.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/len(date[t])**(1/2)
         RMSPE_cho_test = np.linalg.norm((df_chomage.loc[date[t],pays].to_numpy(dtype = 'float').reshape(13,1)- (df_chomage.drop([pays,'Variables'],axis = 1).loc[date[t]].to_numpy(dtype = 'float')@W).reshape(13,1)))/(len(date[t])**(1/2))
         RMSPE_cho_train = np.linalg.norm((df_chomage.drop(date[t],axis = 0)[pays].to_numpy(dtype = 'float') - df_chomage.drop([pays,'Variables'],axis = 1).loc[df_chomage.index.difference(date[t])].to_numpy(dtype = 'float') @ W))/((len(df_chomage.index)-len(date[t]))**(1/2))
@@ -374,7 +374,7 @@ def in_space_placebo():
     for pays in pays_ocde.keys():
         date = liste_date()
         X1, X0 = prep_donnee(pays)
-        W, V, RMSPE_pre = synth(X1, X0)
+        W, V, RMSPE_pre = synth(X1, X0,pays)
         W_pays[pays]=W.tolist()
         RMSPE_post = np.linalg.norm((df_pib.loc[date, pays].to_numpy(dtype='float').reshape(12, 1) - (df_pib.drop([pays, 'Variables'], axis=1).loc[date].to_numpy(dtype='float') @ W).reshape(12,1))) / len(date) ** (1 / 2)
         RMSPE_cho_test = np.linalg.norm((df_chomage.loc[date,pays].to_numpy(dtype = 'float').reshape(12,1)- (df_chomage.drop([pays,'Variables'],axis = 1).loc[date].to_numpy(dtype = 'float')@W).reshape(12,1)))/(len(date)**(1/2))
@@ -404,15 +404,44 @@ def plot_placebo(result,count_fig,relief,numerous = False):
     plt.xlabel('Rapport des RMSPE post et pré intervention')
 
     return fig
-
+'''
 result_in_time= in_time_placebo('United-States')
 fig1 = plot_placebo(result_in_time,0,'2016-Q1 à 2019-Q1',numerous = True)
 plt.savefig('placebo_in_time',bbox_inches='tight')
 plt.close()
-
+'''
 
 result_in_space,W_pays = in_space_placebo()
 fig2 = plot_placebo(result_in_space,1,'United-States')
 plt.savefig('placebo_in_space',bbox_inches='tight')
 plt.close()
 W_pays.to_csv('W_pays.csv')
+
+def delete_liste(serie):
+    for i in range(len(serie)) :
+        serie[i]= serie[i][0]
+    return(serie)
+W_pays.transform(delete_liste)
+sc = np.zeros((100,25))
+i=0
+for pays in df_pib.drop('Variables',axis=1).columns:
+    sc[:,i] = (df_pib.drop([pays,'Variables'],axis = 1).to_numpy(dtype='float')@W_pays[pays].to_numpy(dtype='float').reshape(24,1)).reshape(100)
+    i+=1
+
+sc = df_pib.drop('Variables',axis = 1).to_numpy(dtype='float') - sc
+fig_comp = plt.figure()
+ax = fig_comp.add_subplot(111)
+for i in range(sc.shape[1]-1):
+    plt.plot(sc[:,i],
+             color = 'gray',
+             alpha=0.7)
+plt.plot(sc[:,24],
+         color='red',
+         label='Etats-Unis')
+
+plt.vlines(84, -1.5, 1.5, linestyle='--', color='red', label='Election de Trump')
+plt.xlabel('Années')
+plt.ylabel('Ecart entre le contrôle synthétique et la vraie séries temporelles')
+plt.legend()
+plt.savefig('Ecart au controle synthétique',bbox_inches='tight')
+
